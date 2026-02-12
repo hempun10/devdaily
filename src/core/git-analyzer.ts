@@ -1,5 +1,5 @@
-import simpleGit, { SimpleGit, DiffResult } from 'simple-git';
-import type { Commit, CommitOptions, DiffStats } from '../types/index.js';
+import simpleGit, { SimpleGit } from 'simple-git';
+import { Commit, CommitOptions, DiffStats } from '../types';
 
 export class GitAnalyzer {
   private git: SimpleGit;

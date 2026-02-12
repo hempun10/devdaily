@@ -37,14 +37,10 @@ export const weekCommand = new Command('week')
       const start = getWeekStart(weeksAgo);
       const end = getWeekEnd(weeksAgo);
 
-      // Get user info
-      const user = await git.getCurrentUser();
-
       // Get commits
       const commits = await git.getCommits({
         since: start,
         until: end,
-        author: user.email,
       });
 
       if (commits.length === 0) {
