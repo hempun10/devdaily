@@ -30,15 +30,11 @@ export const standupCommand = new Command('standup')
     const load = spinner('Analyzing your work...').start();
 
     try {
-      // Get user info
-      const user = await git.getCurrentUser();
-
       // Get commits
       const days = parseInt(options.days, 10);
       const since = getDaysAgo(days);
       const commits = await git.getCommits({
         since,
-        author: user.email,
       });
 
       if (commits.length === 0) {

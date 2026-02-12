@@ -1,4 +1,4 @@
-import simpleGit, { SimpleGit, LogResult } from 'simple-git';
+import simpleGit, { SimpleGit, DiffResult } from 'simple-git';
 import type { Commit, CommitOptions, DiffStats } from '../types/index.js';
 
 export class GitAnalyzer {
@@ -23,37 +23,41 @@ export class GitAnalyzer {
   }
 
   async getCommits(options: CommitOptions = {}): Promise<Commit[]> {
-    const logOptions: any = {
-      format: {
-        hash: '%H',
-        message: '%s',
-        body: '%b',
-        author: '%an',
-        date: '%ai',
-      },
-    };
+    const args: string[] = ['log'];
 
     if (options.since) {
-      logOptions.from = options.since.toISOString();
+      args.push(`--since=${options.since.toISOString()}`);
     }
 
     if (options.until) {
-      logOptions.to = options.until.toISOString();
+      args.push(`--until=${options.until.toISOString()}`);
     }
 
     if (options.author) {
-      logOptions.author = options.author;
+      args.push(`--author=${options.author}`);
     }
 
-    const log: LogResult = await this.git.log(logOptions);
+    args.push('--format=%H|%s|%b|%an|%ae|%ai');
 
-    return log.all.map((commit: any) => ({
-      hash: commit.hash,
-      message: commit.message,
-      author: commit.author,
-      date: new Date(commit.date),
-      body: commit.body,
-    }));
+    const result = await this.git.raw(args);
+
+    const commits = result
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const parts = line.split('|');
+        const [hash, message, body, author, _authorEmail, date] = parts;
+        return {
+          hash,
+          message,
+          author,
+          date: new Date(date),
+          body: body || '',
+        };
+      });
+
+    return commits;
   }
 
   async getDiff(base: string = 'main', head: string = 'HEAD'): Promise<string> {
