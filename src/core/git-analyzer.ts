@@ -103,4 +103,9 @@ export class GitAnalyzer {
     const status = await this.git.status();
     return !status.isClean();
   }
+
+  async getRepoRoot(): Promise<string> {
+    const root = await this.git.revparse(['--show-toplevel']);
+    return root.trim();
+  }
 }

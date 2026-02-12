@@ -35,9 +35,7 @@ As developers, we spend too much time on repetitive tasks:
 | **🚀 Standup Generator**     | Generate daily standup notes from recent commits in 30 seconds       |
 | **📄 Smart PR Descriptions** | Auto-generate PR titles and descriptions with commitlint integration |
 | **📅 Weekly Summaries**      | Track your impact and accomplishments over time                      |
-| **🎫 GitHub Issues Context** | Fetches linked issues for richer, context-aware AI summaries         |
-| **🖥️ Interactive Dashboard** | Beautiful TUI with keyboard navigation and real-time stats           |
-| **🩺 Doctor Command**        | Diagnose and auto-fix setup issues with `devdaily doctor --fix`      |
+| **�️ Interactive Dashboard** | Beautiful TUI with keyboard navigation and real-time stats          |
 | **⚙️ Customizable Config**   | Per-project and global configuration with themes                     |
 | **⌨️ Shell Integration**     | `dd` alias, tab completions for bash/zsh/fish                        |
 | **🔄 Interactive Workflow**  | Preview, edit, and create PRs with interactive menus                 |
@@ -256,7 +254,6 @@ dd d
 ```
 
 **Keyboard Shortcuts:**
-
 - `s` - Generate standup
 - `p` - Generate PR description
 - `w` - Generate weekly summary
@@ -283,7 +280,6 @@ devdaily init --completions
 ```
 
 **Sets up:**
-
 - Shell alias: `dd` → `devdaily`
 - Tab completions for bash/zsh/fish
 - Configuration file
@@ -325,7 +321,6 @@ devdaily check
 ```
 
 **Checks:**
-
 - ✅ Node.js version (>= 18)
 - ✅ Git installed
 - ✅ GitHub CLI installed
@@ -333,7 +328,6 @@ devdaily check
 - ✅ Copilot extension installed
 
 **Auto-fix capabilities:**
-
 - Interactive GitHub authentication
 - Copilot extension installation
 
@@ -346,13 +340,11 @@ DevDaily automatically fetches GitHub issue context to provide **richer, more me
 3. Includes the context in AI prompts for better summaries
 
 **Benefits:**
-
-- PR descriptions explain the _why_ (business value), not just the _what_
+- PR descriptions explain the *why* (business value), not just the *what*
 - Weekly summaries highlight impact by referencing completed issues
 - Standup notes include context about what you were working on
 
 **Usage:**
-
 ```bash
 # Normal usage (issues fetched automatically)
 devdaily standup
@@ -388,10 +380,6 @@ DevDaily supports both global and per-project configuration.
     "copyToClipboard": true,
     "showStats": true
   },
-  "projectManagement": {
-    "tool": "github",
-    "ticketPrefix": "PROJ"
-  },
   "standup": {
     "defaultDays": 1
   },
@@ -403,62 +391,6 @@ DevDaily supports both global and per-project configuration.
   }
 }
 ```
-
-### Project Management Integration
-
-DevDaily supports multiple project management tools for richer context:
-
-```json
-{
-  "projectManagement": {
-    // Tool: "github" | "jira" | "linear" | "notion" | "none"
-    "tool": "jira",
-
-    // Ticket prefix for extraction from branches/commits
-    "ticketPrefix": "PROJ",
-
-    // Jira settings
-    "jira": {
-      "baseUrl": "https://yourcompany.atlassian.net",
-      "projectKey": "PROJ"
-    },
-
-    // Linear settings
-    "linear": {
-      "teamKey": "ENG"
-    },
-
-    // Notion settings
-    "notion": {
-      "databaseId": "your-database-id"
-    }
-  }
-}
-```
-
-**Environment Variables for Authentication:**
-
-```bash
-# Jira
-export JIRA_BASE_URL="https://yourcompany.atlassian.net"
-export JIRA_EMAIL="you@company.com"
-export JIRA_API_TOKEN="your-api-token"
-
-# Linear
-export LINEAR_API_KEY="lin_api_xxx"
-
-# Notion
-export NOTION_API_KEY="secret_xxx"
-export NOTION_DATABASE_ID="xxx"
-```
-
-**Ticket Extraction:**
-
-DevDaily automatically extracts ticket IDs from:
-
-1. **Branch names**: `feature/PROJ-123-description`, `PROJ-123/fix-bug`
-2. **Commit messages**: `fix: resolve issue PROJ-123`
-3. **Manual input**: `devdaily pr --ticket PROJ-123`
 
 ## Examples
 

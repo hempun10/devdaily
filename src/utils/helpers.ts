@@ -1,22 +1,12 @@
-import ora from 'ora';
 import clipboard from 'clipboardy';
-import { UI } from './ui.js';
 
 export async function copyToClipboard(text: string): Promise<void> {
   try {
     await clipboard.write(text);
-    console.log(UI.success('Copied to clipboard'));
   } catch {
-    console.log(UI.warning('Failed to copy to clipboard'));
+    // Silently fail - let caller handle messaging
+    throw new Error('Failed to copy to clipboard');
   }
-}
-
-export function spinner(text: string) {
-  return ora({
-    text,
-    spinner: 'dots',
-    color: 'blue',
-  });
 }
 
 export function formatDate(date: Date): string {
