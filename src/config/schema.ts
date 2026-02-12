@@ -132,6 +132,28 @@ export const ConfigSchema = z.object({
   // Project management integration
   projectManagement: ProjectManagementSchema.default({}),
 
+  // Notifications (Slack/Discord webhooks)
+  notifications: z
+    .object({
+      slack: z
+        .object({
+          enabled: z.boolean().default(false),
+          webhookUrl: z.string().optional(),
+          channel: z.string().optional(),
+        })
+        .default({}),
+      discord: z
+        .object({
+          enabled: z.boolean().default(false),
+          webhookUrl: z.string().optional(),
+        })
+        .default({}),
+      // Schedule for auto-standup (e.g., "0 8 * * 1-5" = 8am weekdays)
+      standupSchedule: z.string().optional(),
+      standupTimezone: z.string().default('America/New_York'),
+    })
+    .default({}),
+
   // AI/Copilot settings
   copilot: z
     .object({

@@ -6,6 +6,7 @@ import {
   extractTicketIds,
   type Ticket,
 } from '../core/project-management.js';
+import { sendNotification, formatStandupNotification } from '../core/notifications.js';
 import UI from '../ui/renderer.js';
 import { copyToClipboard, getDaysAgo } from '../utils/helpers.js';
 import { getConfig } from '../config/index.js';
@@ -20,6 +21,9 @@ export const standupCommand = new Command('standup')
   .option('-t, --ticket <id>', 'Include specific ticket/issue for context')
   .option('--no-tickets', 'Skip fetching ticket/issue context')
   .option('--no-copy', 'Do not copy to clipboard')
+  .option('--send', 'Send to configured notification channels (Slack/Discord)')
+  .option('--slack', 'Send to Slack')
+  .option('--discord', 'Send to Discord')
   .action(async (options) => {
     const config = getConfig();
     const git = new GitAnalyzer();
@@ -116,6 +120,37 @@ export const standupCommand = new Command('standup')
       if (options.copy && config.output.copyToClipboard !== false) {
         await copyToClipboard(standup);
         console.log(UI.success('Copied to clipboard'));
+      }
+
+      // Send to notifications
+      if (options.send || options.slack || options.discord) {
+        const ticketLinks = tickets.map((t) => ({
+          id: t.id,
+          url: t.url,
+          title: t.title,
+        }));
+
+        const notification = formatStandupNotification(standup, ticketLinks);
+
+        const sendToSlack = options.slack || options.send;
+        const sendToDiscord = options.discord || options.send;
+
+        const results = await sendNotification(notification, {
+          slack: sendToSlack,
+          discord: sendToDiscord,
+        });
+
+        if (results.slack) {
+          console.log(UI.success('Sent to Slack'));
+        }
+        if (results.discord) {
+          console.log(UI.success('Sent to Discord'));
+        }
+        if (results.slack === false || results.discord === false) {
+          console.log(
+            UI.warning('Some notifications failed to send. Check your webhook configuration.')
+          );
+        }
       }
     } catch (error) {
       spinner.stop();

@@ -24,6 +24,12 @@ export interface Secrets {
     apiKey?: string;
     databaseId?: string;
   };
+  slack?: {
+    webhookUrl?: string;
+  };
+  discord?: {
+    webhookUrl?: string;
+  };
 }
 
 export class ConfigManager {
