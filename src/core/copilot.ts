@@ -89,20 +89,15 @@ export class CopilotClient {
     const prompt = `
 You are helping a developer write their standup notes.
 
-Here are their git commits from yesterday:
+Here are their git commits:
 ${commits.map((c, i) => `${i + 1}. ${c}`).join('\n')}${filesContext}
 
-Generate a professional standup update following this format:
+Generate a concise standup update following this format:
 
-Yesterday I:
+**What I accomplished:**
 - [achievement 1 with impact]
 - [achievement 2 with impact]
 - [achievement 3 with impact]
-
-Today I'm working on:
-- [planned work based on commits]
-
-Blockers: None
 
 Requirements:
 - Make it sound natural and professional
@@ -111,7 +106,8 @@ Requirements:
 - Keep it concise (3-5 bullet points max)
 - No emojis
 - DO NOT include preamble like "Based on commits" or "Here's a summary"
-- Start directly with the standup content
+- DO NOT include "Today I'm working on" or "Blockers" sections
+- Start directly with "**What I accomplished:**"
 `;
 
     return this.suggest(prompt);

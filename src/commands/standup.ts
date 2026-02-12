@@ -14,7 +14,7 @@ export const standupCommand = new Command('standup')
     const git = new GitAnalyzer();
     const copilot = new CopilotClient();
     const configManager = new ConfigManager();
-    const config = configManager.get();
+    const userConfig = configManager.get();
 
     // Check if in git repo
     if (!(await git.isRepository())) {
@@ -34,7 +34,7 @@ export const standupCommand = new Command('standup')
 
     try {
       // Get current user email
-      let userEmail = config.user.email;
+      let userEmail = userConfig.user.email;
       if (!userEmail) {
         try {
           const user = await configManager.autoDetectUser();
@@ -86,9 +86,28 @@ export const standupCommand = new Command('standup')
 
       load.stop();
 
-      // Format output
-      const title = days === 1 ? 'Your Standup' : `Your Work (Last ${days} Days)`;
-      const content = `${standup}\n\n${UI.divider()}\n${UI.dim(`${commits.length} commits analyzed`)}`;
+      // Format output with date/time and user info
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-US', {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        timeZone: userConfig.timezone,
+      });
+      const timeStr = now.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: userConfig.timezone,
+      });
+
+      const title = `Standup - ${dateStr} ${timeStr}`;
+      
+      // Show commit messages for verification
+      const commitList = commits.map((c, i) => `  ${i + 1}. ${c.message}`).join('\n');
+      const footer = `\n${UI.divider()}\n${UI.dim(`User: ${userEmail}`)}\n${UI.dim(`${commits.length} commits analyzed:`)}\n${UI.dim(commitList)}`;
+      
+      const content = `${standup}${footer}`;
 
       console.log(UI.box(content, title));
 
