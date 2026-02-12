@@ -11,12 +11,27 @@ export class CopilotClient {
     }
   }
 
-  async suggest(prompt: string): Promise<string> {
+  async suggest(prompt: string, onStream?: (chunk: string) => void): Promise<string> {
     try {
       // Use new Copilot CLI with non-interactive mode
-      const { stdout } = await execa('copilot', ['-p', prompt, '--allow-all-tools']);
+      if (onStream) {
+        // Stream mode
+        let output = '';
+        const subprocess = execa('copilot', ['-p', prompt, '--allow-all-tools']);
 
-      return this.parseOutput(stdout);
+        subprocess.stdout?.on('data', (data) => {
+          const chunk = data.toString();
+          output += chunk;
+          onStream(this.parseOutput(output));
+        });
+
+        await subprocess;
+        return this.parseOutput(output);
+      } else {
+        // Non-stream mode
+        const { stdout } = await execa('copilot', ['-p', prompt, '--allow-all-tools']);
+        return this.parseOutput(stdout);
+      }
     } catch (error) {
       throw new Error(`Copilot CLI error: ${error}`);
     }
@@ -37,7 +52,7 @@ export class CopilotClient {
 
   private parseOutput(raw: string): string {
     // Remove ANSI codes
-    // eslint-disable-next-line no-control-regex
+
     const cleaned = raw.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
 
     // Split into lines
@@ -81,10 +96,15 @@ export class CopilotClient {
     return result;
   }
 
-  async summarizeCommits(commits: string[], files?: string[]): Promise<string> {
-    const filesContext = files && files.length > 0 
-      ? `\n\nFiles changed:\n${files.slice(0, 20).join('\n')}${files.length > 20 ? '\n... and more' : ''}`
-      : '';
+  async summarizeCommits(
+    commits: string[],
+    files?: string[],
+    onStream?: (chunk: string) => void
+  ): Promise<string> {
+    const filesContext =
+      files && files.length > 0
+        ? `\n\nFiles changed:\n${files.slice(0, 20).join('\n')}${files.length > 20 ? '\n... and more' : ''}`
+        : '';
 
     const prompt = `
 You are helping a developer write their standup notes.
@@ -110,7 +130,7 @@ Requirements:
 - Start directly with "**What I accomplished:**"
 `;
 
-    return this.suggest(prompt);
+    return this.suggest(prompt, onStream);
   }
 
   async generatePRDescription(data: {
@@ -167,9 +187,10 @@ Requirements:
       linesRemoved: number;
     };
   }): Promise<string> {
-    const filesContext = data.files && data.files.length > 0 
-      ? `\n\nKey files changed:\n${data.files.slice(0, 30).join('\n')}${data.files.length > 30 ? '\n... and more' : ''}`
-      : '';
+    const filesContext =
+      data.files && data.files.length > 0
+        ? `\n\nKey files changed:\n${data.files.slice(0, 30).join('\n')}${data.files.length > 30 ? '\n... and more' : ''}`
+        : '';
 
     const prompt = `
 You are helping a developer create their weekly work summary.

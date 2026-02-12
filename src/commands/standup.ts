@@ -57,6 +57,8 @@ export const standupCommand = new Command('standup')
         author: userEmail,
       });
 
+      console.log({ commits });
+
       if (commits.length === 0) {
         load.stop();
         console.log(UI.warning(`No commits found for ${userEmail} in the last ${days} day(s)`));
@@ -66,9 +68,9 @@ export const standupCommand = new Command('standup')
 
       // Get file changes for better context
       load.text = 'Analyzing file changes...';
+      const maxCommits = userConfig.maxCommits || 100;
       const allFiles: string[] = [];
-      for (const commit of commits.slice(0, 10)) {
-        // Limit to first 10 commits for performance
+      for (const commit of commits.slice(0, maxCommits)) {
         try {
           const files = await git.getChangedFilesForCommit(commit.hash);
           allFiles.push(...files);
@@ -80,13 +82,10 @@ export const standupCommand = new Command('standup')
 
       load.text = 'Generating standup notes with Copilot CLI...';
 
-      // Generate standup using Copilot with file context
+      // Generate standup using Copilot with file context and streaming
       const commitMessages = commits.map((c) => c.message);
-      const standup = await copilot.summarizeCommits(commitMessages, uniqueFiles);
 
-      load.stop();
-
-      // Format output with date/time and user info
+      // Prepare display info
       const now = new Date();
       const dateStr = now.toLocaleDateString('en-US', {
         weekday: 'short',
@@ -100,13 +99,50 @@ export const standupCommand = new Command('standup')
         minute: '2-digit',
         timeZone: userConfig.timezone,
       });
-
       const title = `Standup - ${dateStr} ${timeStr}`;
-      
+
+      // Stop spinner and show streaming box
+      load.stop();
+      console.log('\n'); // Add space before box
+
+      let streamingContent = '';
+      const standup = await copilot.summarizeCommits(commitMessages, uniqueFiles, (chunk) => {
+        // Update streaming content
+        streamingContent = chunk;
+        // Clear previous output and show updated box
+        process.stdout.write('\x1B[2J\x1B[H'); // Clear screen and move cursor to top
+        console.log(UI.box(streamingContent || 'Generating...', title));
+      });
+
+      // Clear screen one final time and show complete output
+      process.stdout.write('\x1B[2J\x1B[H');
+
+      // Get date range from commits
+      const oldestCommit = commits[commits.length - 1];
+      const newestCommit = commits[0];
+      const startDate = new Date(oldestCommit.date);
+      const endDate = new Date(newestCommit.date);
+
+      const formatDateTime = (date: Date) => {
+        const d = date.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          timeZone: userConfig.timezone,
+        });
+        const t = date.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: userConfig.timezone,
+        });
+        return `${d} ${t}`;
+      };
+
+      const dateRange = `${formatDateTime(startDate)} → ${formatDateTime(endDate)}`;
+
       // Show commit messages for verification
       const commitList = commits.map((c, i) => `  ${i + 1}. ${c.message}`).join('\n');
-      const footer = `\n${UI.divider()}\n${UI.dim(`User: ${userEmail}`)}\n${UI.dim(`${commits.length} commits analyzed:`)}\n${UI.dim(commitList)}`;
-      
+      const footer = `\n${UI.divider()}\n${UI.dim(`Period: ${dateRange}`)}\n${UI.dim(`User: ${userEmail}`)}\n${UI.dim(`${commits.length} commits analyzed:`)}\n${UI.dim(commitList)}`;
+
       const content = `${standup}${footer}`;
 
       console.log(UI.box(content, title));

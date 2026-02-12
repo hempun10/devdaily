@@ -10,6 +10,7 @@ export interface DevDailyConfig {
   timezone: string; // e.g., "Asia/Kathmandu"
   weekStart: 0 | 1 | 6; // 0=Sunday, 1=Monday, 6=Saturday
   standupTime: string; // e.g., "10:00"
+  maxCommits: number; // Max commits to analyze (default 100)
   integrations: {
     slack?: {
       webhookUrl: string;
@@ -31,6 +32,7 @@ export const DEFAULT_CONFIG: DevDailyConfig = {
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   weekStart: 0, // Sunday
   standupTime: '10:00',
+  maxCommits: 100, // Max commits to analyze
   integrations: {},
 };
 
