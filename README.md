@@ -1,112 +1,400 @@
+<div align="center">
+
 # DevDaily AI
 
-> Your AI memory for developer work
+**Your AI-powered developer memory**
 
-Never forget what you did. Auto-generate PR descriptions, standup notes, and work summaries from your git history.
+Auto-generate standup notes, PR descriptions, and weekly summaries from your git history.
+
+[![NPM Version](https://img.shields.io/npm/v/devdaily-ai)](https://www.npmjs.com/package/devdaily-ai)
+[![Node Version](https://img.shields.io/node/v/devdaily-ai)](https://nodejs.org)
+[![License](https://img.shields.io/npm/l/devdaily-ai)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/hempun10/devdaily)](https://github.com/hempun10/devdaily)
+
+[Installation](#installation) • [Quick Start](#quick-start) • [Commands](#commands) • [Examples](#examples) • [Contributing](docs/CONTRIBUTING.md)
+
+</div>
+
+---
+
+## Why DevDaily AI?
+
+As developers, we spend too much time on repetitive tasks:
+
+- ⏱️ Writing standup notes every morning
+- 📝 Crafting PR descriptions from scratch
+- 📊 Summarizing weekly accomplishments
+- 🔍 Remembering what we were working on last week
+
+**DevDaily AI solves this.** It analyzes your git history and uses GitHub Copilot CLI to generate professional summaries in seconds.
 
 ## Features
 
-- **Standup Generator** - Yesterday's work in 30 seconds
-- **PR Descriptions** - AI-generated from your commits
-- **Weekly Summaries** - Track your impact over time
-- **Smart Context** - Remember what you were working on
+| Feature                      | Description                                                          |
+| ---------------------------- | -------------------------------------------------------------------- |
+| **🚀 Standup Generator**     | Generate daily standup notes from recent commits in 30 seconds       |
+| **📄 Smart PR Descriptions** | Auto-generate PR titles and descriptions with commitlint integration |
+| **📅 Weekly Summaries**      | Track your impact and accomplishments over time                      |
+| **🔄 Interactive Workflow**  | Preview, edit, and create PRs with interactive menus                 |
+| **📋 Auto-Copy**             | All outputs copied to clipboard automatically                        |
+| **🎨 Professional Output**   | Clean terminal UI with no emojis (terminal.shop inspired)            |
+| **🔧 Multi-Format**          | Export to Markdown, Slack, or plain text                             |
 
 ## Installation
 
-```bash
-npm install -g devdaily-ai
-```
+**Prerequisites:**
 
-## Quick Start
-
-```bash
-# Generate standup notes
-devdaily standup
-
-# Create PR description
-devdaily pr
-
-# Weekly summary
-devdaily week
-```
-
-## Commands
-
-### `devdaily standup`
-
-Generate standup notes from your recent commits.
-
-```bash
-devdaily standup              # Yesterday's work
-devdaily standup --days=3     # Last 3 days
-devdaily standup --format=slack
-```
-
-### `devdaily pr`
-
-Generate comprehensive PR descriptions.
-
-```bash
-devdaily pr                   # Generate description
-devdaily pr --create          # Create PR on GitHub
-devdaily pr --draft           # Create as draft
-devdaily pr --base=develop    # Compare to develop
-```
-
-### `devdaily week`
-
-Get a weekly summary of your work.
-
-```bash
-devdaily week                 # Current week
-devdaily week --last          # Last week
-```
-
-## Requirements
-
-- Node.js >= 18
+- Node.js >= 18.0.0
 - Git repository
-- GitHub CLI (`gh`) with Copilot extension
+- GitHub CLI with Copilot extension
 
-## Setup
+### 1. Install GitHub CLI (if not already installed)
 
-1. Install GitHub CLI:
 ```bash
-brew install gh  # macOS
-# or visit https://cli.github.com
+# macOS
+brew install gh
+
+# Windows
+winget install --id GitHub.cli
+
+# Linux
+sudo apt install gh  # Debian/Ubuntu
+sudo dnf install gh  # Fedora/RHEL
 ```
 
-2. Install Copilot extension:
+Or visit [cli.github.com](https://cli.github.com) for other installation methods.
+
+### 2. Install GitHub Copilot CLI Extension
+
 ```bash
 gh extension install github/gh-copilot
 gh auth login
 ```
 
-3. Install DevDaily:
+### 3. Install DevDaily AI
+
 ```bash
 npm install -g devdaily-ai
 ```
 
-## Development
+### Verify Installation
 
 ```bash
-# Clone repo
-git clone https://github.com/yourusername/devdaily-ai
-cd devdaily-ai
+devdaily --version
+devdaily --help
+```
+
+## Quick Start
+
+Navigate to any git repository and run:
+
+```bash
+# Generate standup notes
+devdaily standup
+
+# Generate PR description
+devdaily pr
+
+# Get weekly summary
+devdaily week
+```
+
+All outputs are automatically copied to your clipboard! 📋
+
+## Commands
+
+### `devdaily standup`
+
+Generate daily standup notes from your recent commits.
+
+```bash
+# Yesterday's work (default)
+devdaily standup
+
+# Last 3 days
+devdaily standup --days=3
+
+# Last week
+devdaily standup --days=7
+
+# Output in Slack format
+devdaily standup --format=slack
+
+# Plain text format
+devdaily standup --format=plain
+
+# Don't copy to clipboard
+devdaily standup --no-copy
+```
+
+**Options:**
+
+- `--days, -d <number>` - Number of days to analyze (default: 1)
+- `--format, -f <format>` - Output format: markdown, slack, plain (default: markdown)
+- `--no-copy` - Don't copy to clipboard
+
+### `devdaily pr`
+
+Generate comprehensive PR descriptions with smart title generation.
+
+```bash
+# Generate PR description (interactive)
+devdaily pr
+
+# Create PR immediately
+devdaily pr --create
+
+# Create draft PR
+devdaily pr --draft
+
+# Compare to develop branch
+devdaily pr --base=develop
+
+# Don't copy to clipboard
+devdaily pr --no-copy
+```
+
+**Options:**
+
+- `--base, -b <branch>` - Base branch to compare against (default: main)
+- `--create, -c` - Create PR on GitHub immediately
+- `--draft, -d` - Create PR as draft
+- `--no-copy` - Don't copy to clipboard
+
+**Interactive Menu:**
+When you run `devdaily pr` without flags, you get an interactive menu:
+
+- 👁️ Preview in terminal
+- 📋 Copy to clipboard
+- 🚀 Create PR on GitHub
+- 📝 Create draft PR
+- ❌ Cancel
+
+**Smart Features:**
+
+- Automatically generates PR title from conventional commits
+- Extracts issue numbers (e.g., "Closes #123")
+- Categorizes PR type (feature, bugfix, breaking change)
+- Parses commitlint messages for better titles
+
+### `devdaily week`
+
+Generate weekly summary of your accomplishments.
+
+```bash
+# Current week (default)
+devdaily week
+
+# Last week
+devdaily week --last
+
+# Custom start date
+devdaily week --start="2026-02-01"
+
+# Don't copy to clipboard
+devdaily week --no-copy
+```
+
+**Options:**
+
+- `--last, -l` - Show last week instead of current week
+- `--start, -s <date>` - Custom start date (YYYY-MM-DD)
+- `--no-copy` - Don't copy to clipboard
+
+### `devdaily context`
+
+Recover work context from past commits (coming soon).
+
+```bash
+devdaily context --days=7
+```
+
+## Examples
+
+See the [`examples/`](examples/) directory for detailed output samples:
+
+- [Standup Output](examples/standup-output.md)
+- [PR Description Output](examples/pr-output.md)
+- [Weekly Summary Output](examples/week-output.md)
+
+## How It Works
+
+1. **Analyzes Git History** - Uses `simple-git` to parse commits, diffs, and file changes
+2. **Extracts Context** - Parses conventional commits, issue numbers, and PR types
+3. **AI Summarization** - Leverages GitHub Copilot CLI to generate human-readable summaries
+4. **Professional Output** - Formats with clean terminal UI (chalk, boxen, ora)
+5. **Auto-Copy** - Copies results to clipboard for immediate use
+
+## Configuration
+
+DevDaily AI works out of the box with sensible defaults. No configuration file needed!
+
+All settings can be controlled via command-line flags.
+
+## Development
+
+Want to contribute? See our [Contributing Guide](docs/CONTRIBUTING.md).
+
+```bash
+# Clone the repository
+git clone https://github.com/hempun10/devdaily.git
+cd devdaily
 
 # Install dependencies
 npm install
 
-# Run in dev mode
+# Run in development mode
 npm run dev
-
-# Build
-npm run build
 
 # Run tests
 npm test
+
+# Run tests in watch mode
+npm test -- --watch
+
+# Type checking
+npm run typecheck
+
+# Lint code
+npm run lint
+npm run lint:fix
+
+# Format code
+npm run format
+
+# Build for production
+npm run build
 ```
+
+### Project Structure
+
+```
+devdaily-ai/
+├── src/
+│   ├── commands/         # CLI command implementations
+│   │   ├── standup.ts   # Standup generator
+│   │   ├── pr.ts        # PR description generator
+│   │   ├── week.ts      # Weekly summary
+│   │   └── context.ts   # Context recovery
+│   ├── core/            # Core business logic
+│   │   ├── git-analyzer.ts    # Git operations
+│   │   └── copilot.ts         # Copilot CLI integration
+│   ├── utils/           # Utilities
+│   │   ├── ui.ts        # Terminal UI helpers
+│   │   ├── helpers.ts   # Date, clipboard utilities
+│   │   └── commitlint.ts      # Commit parser
+│   ├── types/           # TypeScript type definitions
+│   └── index.ts         # CLI entry point
+├── tests/               # Test files
+├── docs/                # Documentation
+├── examples/            # Usage examples
+└── dist/                # Build output
+```
+
+## Tech Stack
+
+- **TypeScript** - Type-safe development
+- **Commander.js** - CLI framework
+- **simple-git** - Git operations
+- **execa** - Subprocess execution for Copilot CLI
+- **inquirer** - Interactive prompts
+- **chalk** - Terminal styling
+- **boxen** - Terminal boxes
+- **ora** - Loading spinners
+- **clipboardy** - Clipboard operations
+
+## FAQ
+
+**Q: Does this work offline?**  
+A: No, DevDaily AI requires GitHub Copilot CLI which needs an internet connection for AI summaries.
+
+**Q: What git hosting providers are supported?**  
+A: DevDaily AI works with any git repository. GitHub CLI is only needed for creating PRs.
+
+**Q: Is my code sent to GitHub?**  
+A: Only commit messages and diffs are sent to GitHub Copilot CLI for summarization. Full file contents are not shared.
+
+**Q: Can I customize the output format?**  
+A: Yes! Use `--format` flag for standup command. PR and weekly commands support markdown by default.
+
+**Q: Does it work with monorepos?**  
+A: Yes! DevDaily AI analyzes the entire git history of your current directory.
+
+**Q: What about conventional commits?**  
+A: DevDaily AI parses conventional commits automatically and uses them for smart PR title generation.
+
+## Troubleshooting
+
+### Command not found: devdaily
+
+Make sure you installed globally:
+
+```bash
+npm install -g devdaily-ai
+```
+
+### GitHub Copilot CLI not found
+
+Install the Copilot extension:
+
+```bash
+gh extension install github/gh-copilot
+```
+
+### Not in a git repository
+
+DevDaily AI only works inside git repositories. Run:
+
+```bash
+git init  # Initialize a new repo
+# or
+cd /path/to/your/git/repo
+```
+
+### No commits found
+
+Make sure you have commits in your repository:
+
+```bash
+git log  # Check commit history
+```
+
+For more help, see our [documentation](docs/) or [open an issue](https://github.com/hempun10/devdaily/issues).
+
+## Roadmap
+
+- [ ] Support for Ollama (local AI models)
+- [ ] Analytics and tracking dashboard
+- [ ] Context recovery with AI-powered reminders
+- [ ] PR template detection and auto-fill
+- [ ] Integration with Jira/Linear/Asana
+- [ ] Team collaboration features
+- [ ] VS Code extension
+
+## Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
 ## License
 
-MIT
+MIT © [Hem Pun](https://github.com/hempun10)
+
+## Acknowledgments
+
+Built for the [GitHub Copilot CLI Challenge](https://dev.to/devteam/join-the-github-copilot-cli-challenge-win-github-universe-tickets-copilot-pro-subscriptions-and-50af).
+
+Special thanks to:
+
+- GitHub Copilot CLI team
+- terminal.shop for UI inspiration
+- The awesome TypeScript community
+
+---
+
+<div align="center">
+
+**[⬆ back to top](#devdaily-ai)**
+
+Made with ❤️ by developers, for developers
+
+</div>
