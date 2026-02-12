@@ -139,6 +139,7 @@ export const initCommand = new Command('init')
   .option('--completions', 'Only set up shell completions')
   .option('--config', 'Only create config file')
   .option('--pm', 'Only set up project management integration')
+  .option('--notifications', 'Only set up Slack/Discord notifications')
   .action(async (options) => {
     console.log('');
     console.log(UI.header('DevDaily Setup'));
@@ -151,7 +152,8 @@ export const initCommand = new Command('init')
     const tasks: Array<{ name: string; done: boolean; skipped: boolean }> = [];
 
     // Interactive setup if no specific options
-    const hasSpecificOption = options.alias || options.completions || options.config || options.pm;
+    const hasSpecificOption =
+      options.alias || options.completions || options.config || options.pm || options.notifications;
 
     if (!hasSpecificOption) {
       const { features } = await inquirer.prompt([
@@ -180,6 +182,11 @@ export const initCommand = new Command('init')
               value: 'pm',
               checked: true,
             },
+            {
+              name: `${colors.accent('🔔')} Notifications (Slack/Discord webhooks)`,
+              value: 'notifications',
+              checked: false,
+            },
           ],
         },
       ]);
@@ -188,6 +195,7 @@ export const initCommand = new Command('init')
       options.completions = features.includes('completions');
       options.config = features.includes('config');
       options.pm = features.includes('pm');
+      options.notifications = features.includes('notifications');
     }
 
     console.log('');
@@ -382,6 +390,131 @@ export const initCommand = new Command('init')
         tasks.push({ name: 'PM integration', done: true, skipped: false });
       } else {
         tasks.push({ name: 'PM integration', done: false, skipped: true });
+      }
+    }
+
+    // Set up notifications
+    if (options.notifications) {
+      console.log('');
+      console.log(UI.divider());
+      console.log('');
+      console.log(colors.bold('🔔 Notification Setup'));
+      console.log(colors.muted('  Send standups to Slack or Discord automatically'));
+      console.log('');
+
+      const { notificationChannels } = await inquirer.prompt([
+        {
+          type: 'checkbox',
+          name: 'notificationChannels',
+          message: 'Which notification channels do you want to set up?',
+          choices: [
+            { name: '💬 Slack (webhook)', value: 'slack' },
+            { name: '🎮 Discord (webhook)', value: 'discord' },
+          ],
+        },
+      ]);
+
+      const configManager = ConfigManager.getInstance();
+      const secrets: Secrets = {};
+      const notificationConfig: Record<string, unknown> = {};
+
+      if (notificationChannels.includes('slack')) {
+        console.log('');
+        console.log(colors.muted('  Create a Slack webhook at: api.slack.com/apps'));
+        console.log(colors.muted('  → Create App → Incoming Webhooks → Add New Webhook'));
+        console.log('');
+
+        const slackAnswers = await inquirer.prompt([
+          {
+            type: 'password',
+            name: 'webhookUrl',
+            message: 'Slack webhook URL:',
+            mask: '*',
+            validate: (input: string) =>
+              input.startsWith('https://hooks.slack.com/') || 'Must be a valid Slack webhook URL',
+          },
+        ]);
+
+        secrets.slack = {
+          webhookUrl: slackAnswers.webhookUrl,
+        };
+
+        notificationConfig.slack = {
+          enabled: true,
+        };
+
+        console.log(UI.success('Slack configured!'));
+      }
+
+      if (notificationChannels.includes('discord')) {
+        console.log('');
+        console.log(colors.muted('  Create a Discord webhook:'));
+        console.log(colors.muted('  → Server Settings → Integrations → Webhooks → New Webhook'));
+        console.log('');
+
+        const discordAnswers = await inquirer.prompt([
+          {
+            type: 'password',
+            name: 'webhookUrl',
+            message: 'Discord webhook URL:',
+            mask: '*',
+            validate: (input: string) =>
+              input.startsWith('https://discord.com/api/webhooks/') ||
+              'Must be a valid Discord webhook URL',
+          },
+        ]);
+
+        secrets.discord = {
+          webhookUrl: discordAnswers.webhookUrl,
+        };
+
+        notificationConfig.discord = {
+          enabled: true,
+        };
+
+        console.log(UI.success('Discord configured!'));
+      }
+
+      if (notificationChannels.length > 0) {
+        // Save notification config
+        const config = {
+          notifications: notificationConfig,
+        };
+
+        if (options.global) {
+          configManager.update(config);
+          configManager.saveGlobal();
+        } else {
+          configManager.saveLocal(config);
+        }
+
+        // Save secrets
+        if (Object.keys(secrets).length > 0) {
+          configManager.saveSecrets(secrets, options.global);
+
+          if (!options.global) {
+            const added = configManager.addSecretsToGitignore();
+            if (added) {
+              console.log(UI.success('Added .devdaily.secrets.json to .gitignore'));
+            }
+          }
+        }
+
+        console.log('');
+        console.log(colors.muted('  Usage:'));
+        console.log(
+          `    ${colors.primary('devdaily standup --send')}   ${colors.muted('# Send to all channels')}`
+        );
+        console.log(
+          `    ${colors.primary('devdaily standup --slack')}  ${colors.muted('# Send to Slack only')}`
+        );
+        console.log(
+          `    ${colors.primary('devdaily standup --discord')} ${colors.muted('# Send to Discord only')}`
+        );
+
+        tasks.push({ name: 'Notifications', done: true, skipped: false });
+      } else {
+        tasks.push({ name: 'Notifications', done: false, skipped: true });
       }
     }
 
