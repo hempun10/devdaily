@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { GitAnalyzer } from '../core/git-analyzer.js';
 import { CopilotClient } from '../core/copilot.js';
+import { ConfigManager } from '../core/config.js';
 import { UI } from '../utils/ui.js';
 import { spinner, copyToClipboard, getDaysAgo } from '../utils/helpers.js';
 
@@ -12,6 +13,8 @@ export const standupCommand = new Command('standup')
   .action(async (options) => {
     const git = new GitAnalyzer();
     const copilot = new CopilotClient();
+    const configManager = new ConfigManager();
+    const config = configManager.get();
 
     // Check if in git repo
     if (!(await git.isRepository())) {
@@ -23,32 +26,63 @@ export const standupCommand = new Command('standup')
     // Check if Copilot CLI is installed
     if (!(await copilot.isInstalled())) {
       console.log(UI.error('GitHub Copilot CLI not found'));
-      console.log(UI.info('Install with: gh extension install github/gh-copilot'));
+      console.log(UI.info('Install: https://github.com/github/copilot-cli'));
       process.exit(1);
     }
 
     const load = spinner('Analyzing your work...').start();
 
     try {
-      // Get commits
+      // Get current user email
+      let userEmail = config.user.email;
+      if (!userEmail) {
+        try {
+          const user = await configManager.autoDetectUser();
+          userEmail = user.email;
+          load.text = `Detected user: ${user.name} <${user.email}>`;
+        } catch {
+          load.stop();
+          console.log(UI.error('Could not detect git user'));
+          console.log(UI.info('Run: git config --global user.email "your@email.com"'));
+          console.log(UI.info('Or configure: devdaily config set user.email "your@email.com"'));
+          process.exit(1);
+        }
+      }
+
+      // Get commits filtered by current user
       const days = parseInt(options.days, 10);
       const since = getDaysAgo(days);
       const commits = await git.getCommits({
         since,
+        author: userEmail,
       });
 
       if (commits.length === 0) {
         load.stop();
-        console.log(UI.warning(`No commits found in the last ${days} day(s)`));
+        console.log(UI.warning(`No commits found for ${userEmail} in the last ${days} day(s)`));
         console.log(UI.info(`Try: devdaily standup --days=${days + 1}`));
         process.exit(0);
       }
 
+      // Get file changes for better context
+      load.text = 'Analyzing file changes...';
+      const allFiles: string[] = [];
+      for (const commit of commits.slice(0, 10)) {
+        // Limit to first 10 commits for performance
+        try {
+          const files = await git.getChangedFilesForCommit(commit.hash);
+          allFiles.push(...files);
+        } catch {
+          // Ignore errors for individual commits
+        }
+      }
+      const uniqueFiles = [...new Set(allFiles)];
+
       load.text = 'Generating standup notes with Copilot CLI...';
 
-      // Generate standup using Copilot
+      // Generate standup using Copilot with file context
       const commitMessages = commits.map((c) => c.message);
-      const standup = await copilot.summarizeCommits(commitMessages);
+      const standup = await copilot.summarizeCommits(commitMessages, uniqueFiles);
 
       load.stop();
 
@@ -58,7 +92,7 @@ export const standupCommand = new Command('standup')
 
       console.log(UI.box(content, title));
 
-      // Copy to clipboard
+      // Copy only the standup text to clipboard (not the box)
       if (options.copy) {
         await copyToClipboard(standup);
       }

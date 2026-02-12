@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { GitAnalyzer } from '../core/git-analyzer.js';
 import { CopilotClient } from '../core/copilot.js';
+import { ConfigManager } from '../core/config.js';
 import { UI } from '../utils/ui.js';
 import {
   spinner,
@@ -17,6 +18,8 @@ export const weekCommand = new Command('week')
   .action(async (options) => {
     const git = new GitAnalyzer();
     const copilot = new CopilotClient();
+    const configManager = new ConfigManager();
+    const config = configManager.get();
 
     // Check if in git repo
     if (!(await git.isRepository())) {
@@ -33,31 +36,61 @@ export const weekCommand = new Command('week')
     const load = spinner('Analyzing your week...').start();
 
     try {
-      const weeksAgo = options.last ? 1 : 0;
-      const start = getWeekStart(weeksAgo);
-      const end = getWeekEnd(weeksAgo);
+      // Get current user email
+      let userEmail = config.user.email;
+      if (!userEmail) {
+        try {
+          const user = await configManager.autoDetectUser();
+          userEmail = user.email;
+        } catch {
+          load.stop();
+          console.log(UI.error('Could not detect git user'));
+          console.log(UI.info('Run: git config --global user.email "your@email.com"'));
+          process.exit(1);
+        }
+      }
 
-      // Get commits
+      const weeksAgo = options.last ? 1 : 0;
+      const start = getWeekStart(weeksAgo, config.weekStart);
+      const end = getWeekEnd(weeksAgo, config.weekStart);
+
+      // Get commits filtered by current user
       const commits = await git.getCommits({
         since: start,
         until: end,
+        author: userEmail,
       });
 
       if (commits.length === 0) {
         load.stop();
-        console.log(UI.warning('No commits found this week'));
+        console.log(UI.warning(`No commits found for ${userEmail} this week`));
         process.exit(0);
       }
+
+      // Get file changes for better context
+      load.text = 'Analyzing file changes...';
+      const allFiles: string[] = [];
+      for (const commit of commits.slice(0, 20)) {
+        // Limit to first 20 commits for performance
+        try {
+          const files = await git.getChangedFilesForCommit(commit.hash);
+          allFiles.push(...files);
+        } catch {
+          // Ignore errors
+        }
+      }
+      const uniqueFiles = [...new Set(allFiles)];
 
       // Get stats
       const stats = await git.getDiffStats();
 
       load.text = 'Generating summary with Copilot CLI...';
 
-      // Generate summary
+      // Generate summary with file context
       const commitMessages = commits.map((c) => c.message);
       const summary = await copilot.generateWeeklySummary({
         commits: commitMessages,
+        files: uniqueFiles,
         stats: {
           commits: commits.length,
           linesAdded: stats.insertions,
@@ -73,7 +106,7 @@ export const weekCommand = new Command('week')
 
       console.log(UI.box(content, title));
 
-      // Copy to clipboard
+      // Copy only the summary text to clipboard (not the box)
       if (options.copy) {
         await copyToClipboard(summary);
       }

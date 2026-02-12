@@ -10,7 +10,7 @@ import { extractIssueNumbers, generatePRTitle, categorizePRType } from '../utils
 
 export const prCommand = new Command('pr')
   .description('Generate PR description from current branch')
-  .option('-b, --base <branch>', 'Base branch to compare against', 'main')
+  .option('-b, --base <branch>', 'Base branch to compare against (auto-detects if not provided)')
   .option('-c, --create', 'Create PR on GitHub')
   .option('-d, --draft', 'Create as draft PR')
   .option('-e, --edit', 'Edit description before creating')
@@ -27,7 +27,7 @@ export const prCommand = new Command('pr')
     // Check if Copilot CLI is installed
     if (!(await copilot.isInstalled())) {
       console.log(UI.error('GitHub Copilot CLI not found'));
-      console.log(UI.info('Install with: gh extension install github/gh-copilot'));
+      console.log(UI.info('Install: https://github.com/github/copilot-cli'));
       process.exit(1);
     }
 
@@ -36,10 +36,13 @@ export const prCommand = new Command('pr')
     try {
       // Get current branch
       const currentBranch = await git.getCurrentBranch();
+      
+      // Auto-detect base branch if not provided
+      const baseBranch = options.base || (await git.getDefaultBranch());
 
-      if (currentBranch === options.base) {
+      if (currentBranch === baseBranch) {
         load.stop();
-        console.log(UI.error(`Cannot create PR from ${options.base} branch`));
+        console.log(UI.error(`Cannot create PR from ${baseBranch} branch`));
         console.log(UI.info('Switch to a feature branch first'));
         process.exit(1);
       }
@@ -54,7 +57,7 @@ export const prCommand = new Command('pr')
       }
 
       // Get changed files
-      const files = await git.getChangedFiles(options.base);
+      const files = await git.getChangedFiles(baseBranch);
 
       // Extract issue numbers
       const commitMessages = commits.map((c) => c.message);
@@ -122,7 +125,7 @@ export const prCommand = new Command('pr')
             '--body',
             description,
             '--base',
-            options.base,
+            baseBranch,
           ];
 
           if (isDraft) {

@@ -3,7 +3,8 @@ import { execa } from 'execa';
 export class CopilotClient {
   async isInstalled(): Promise<boolean> {
     try {
-      await execa('gh', ['copilot', '--version']);
+      // Check for new GitHub Copilot CLI
+      await execa('copilot', ['--version']);
       return true;
     } catch {
       return false;
@@ -12,7 +13,8 @@ export class CopilotClient {
 
   async suggest(prompt: string): Promise<string> {
     try {
-      const { stdout } = await execa('gh', ['copilot', 'suggest', '-t', 'shell', prompt]);
+      // Use new Copilot CLI with non-interactive mode
+      const { stdout } = await execa('copilot', ['-p', prompt, '--allow-all-tools']);
 
       return this.parseOutput(stdout);
     } catch (error) {
@@ -22,7 +24,11 @@ export class CopilotClient {
 
   async explain(code: string): Promise<string> {
     try {
-      const { stdout } = await execa('gh', ['copilot', 'explain', code]);
+      const { stdout } = await execa('copilot', [
+        '-p',
+        `Explain this code: ${code}`,
+        '--allow-all-tools',
+      ]);
       return this.parseOutput(stdout);
     } catch (error) {
       throw new Error(`Copilot CLI error: ${error}`);
@@ -30,32 +36,61 @@ export class CopilotClient {
   }
 
   private parseOutput(raw: string): string {
-    // The gh copilot CLI wraps output in UI elements
-    // We need to extract just the AI response
-
     // Remove ANSI codes
     // eslint-disable-next-line no-control-regex
     const cleaned = raw.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
 
-    // Extract the actual suggestion (between prompts)
+    // Split into lines
     const lines = cleaned.split('\n');
-    const relevantLines = lines.filter(
-      (line) =>
-        line.trim() &&
-        !line.includes('Suggestion:') &&
-        !line.includes('Explain command:') &&
-        !line.includes('?')
-    );
 
-    return relevantLines.join('\n').trim();
+    // Find the main content (skip usage stats at the end)
+    const endMarkers = [
+      'Total usage est:',
+      'API time spent:',
+      'Total session time:',
+      'Breakdown by AI model:',
+    ];
+
+    const contentLines: string[] = [];
+
+    for (const line of lines) {
+      if (endMarkers.some((marker) => line.includes(marker))) {
+        break;
+      }
+      contentLines.push(line);
+    }
+
+    // Join and clean up
+    let result = contentLines.join('\n').trim();
+
+    // Remove common AI preamble phrases
+    const preambles = [
+      /^Based on the (?:git commits?|commit history|commits),?\s*here'?s?\s*(?:a|your)?\s*professional\s*(?:standup|weekly)?\s*(?:update|summary|note)?:?\s*/i,
+      /^Based on the commits?,?\s*here'?s?\s*(?:a|your)?\s*professional\s*(?:standup|weekly)?\s*(?:update|summary|note)?:?\s*/i,
+      /^Here'?s?\s*(?:a|your)?\s*professional\s*(?:standup|weekly)?\s*(?:update|summary|note)?:?\s*/i,
+      /^I'll (?:create|generate|help you create)\s*(?:a|your)?\s*(?:standup|weekly)?\s*(?:update|summary|note)?:?\s*/i,
+    ];
+
+    for (const pattern of preambles) {
+      result = result.replace(pattern, '');
+    }
+
+    // Trim again after removing preamble
+    result = result.trim();
+
+    return result;
   }
 
-  async summarizeCommits(commits: string[]): Promise<string> {
+  async summarizeCommits(commits: string[], files?: string[]): Promise<string> {
+    const filesContext = files && files.length > 0 
+      ? `\n\nFiles changed:\n${files.slice(0, 20).join('\n')}${files.length > 20 ? '\n... and more' : ''}`
+      : '';
+
     const prompt = `
 You are helping a developer write their standup notes.
 
 Here are their git commits from yesterday:
-${commits.map((c, i) => `${i + 1}. ${c}`).join('\n')}
+${commits.map((c, i) => `${i + 1}. ${c}`).join('\n')}${filesContext}
 
 Generate a professional standup update following this format:
 
@@ -75,6 +110,8 @@ Requirements:
 - Highlight business impact when possible
 - Keep it concise (3-5 bullet points max)
 - No emojis
+- DO NOT include preamble like "Based on commits" or "Here's a summary"
+- Start directly with the standup content
 `;
 
     return this.suggest(prompt);
@@ -127,17 +164,22 @@ Requirements:
 
   async generateWeeklySummary(data: {
     commits: string[];
+    files?: string[];
     stats: {
       commits: number;
       linesAdded: number;
       linesRemoved: number;
     };
   }): Promise<string> {
+    const filesContext = data.files && data.files.length > 0 
+      ? `\n\nKey files changed:\n${data.files.slice(0, 30).join('\n')}${data.files.length > 30 ? '\n... and more' : ''}`
+      : '';
+
     const prompt = `
 You are helping a developer create their weekly work summary.
 
 This week's commits:
-${data.commits.map((c, i) => `${i + 1}. ${c}`).join('\n')}
+${data.commits.map((c, i) => `${i + 1}. ${c}`).join('\n')}${filesContext}
 
 Statistics:
 - ${data.stats.commits} commits
@@ -162,6 +204,8 @@ Requirements:
 - Highlight 3-5 key accomplishments
 - Keep it professional
 - No emojis
+- DO NOT include preamble like "Based on commits" or "Here's a summary"
+- Start directly with "Key Accomplishments:"
 `;
 
     return this.suggest(prompt);
