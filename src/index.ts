@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { Command } from 'commander';
 import { standupCommand } from './commands/standup.js';
 import { prCommand } from './commands/pr.js';
