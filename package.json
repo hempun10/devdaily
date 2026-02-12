@@ -4,7 +4,7 @@
   "description": "Your AI memory for developer work - auto-generate PR descriptions, standup notes, and work summaries",
   "type": "module",
   "bin": {
-    "devdaily": "./dist/index.js"
+    "devdaily": "dist/index.js"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -34,7 +34,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hempun10/devdaily.git"
+    "url": "git+https://github.com/hempun10/devdaily.git"
   },
   "bugs": {
     "url": "https://github.com/hempun10/devdaily/issues"
