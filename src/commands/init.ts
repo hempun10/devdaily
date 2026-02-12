@@ -359,18 +359,22 @@ export const initCommand = new Command('init')
 
       // Save PM config
       if (pmTool !== 'none') {
+        // Use type assertion since we're doing a partial update
         const pmConfig = {
           projectManagement: {
-            tool: pmTool as 'github' | 'jira' | 'linear' | 'notion',
+            tool: pmTool,
             ticketPrefix: ticketPrefix || undefined,
+            jira: {},
+            linear: {},
+            notion: {},
           },
-        };
+        } as Parameters<typeof configManager.update>[0];
 
         if (options.global) {
           configManager.update(pmConfig);
           configManager.saveGlobal();
         } else {
-          configManager.saveLocal(pmConfig);
+          configManager.saveLocal(pmConfig as Parameters<typeof configManager.saveLocal>[0]);
         }
 
         // Save secrets if any
@@ -416,7 +420,10 @@ export const initCommand = new Command('init')
 
       const configManager = ConfigManager.getInstance();
       const secrets: Secrets = {};
-      const notificationConfig: Record<string, unknown> = {};
+      const notificationConfig: {
+        slack?: { enabled: boolean };
+        discord?: { enabled: boolean };
+      } = {};
 
       if (notificationChannels.includes('slack')) {
         console.log('');
@@ -476,16 +483,20 @@ export const initCommand = new Command('init')
       }
 
       if (notificationChannels.length > 0) {
-        // Save notification config
+        // Save notification config - use type assertion for partial update
         const config = {
-          notifications: notificationConfig,
-        };
+          notifications: {
+            slack: { enabled: false, ...notificationConfig.slack },
+            discord: { enabled: false, ...notificationConfig.discord },
+            standupTimezone: 'America/New_York',
+          },
+        } as Parameters<typeof configManager.update>[0];
 
         if (options.global) {
           configManager.update(config);
           configManager.saveGlobal();
         } else {
-          configManager.saveLocal(config);
+          configManager.saveLocal(config as Parameters<typeof configManager.saveLocal>[0]);
         }
 
         // Save secrets
