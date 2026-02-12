@@ -63,7 +63,7 @@ function renderPRPreview(
     colors.muted('│  ') +
       colors.primary(metadata.branch) +
       colors.muted(' → ') +
-      colors.secondary(metadata.base)
+      colors.accent(metadata.base)
   );
 
   // Metadata badges
@@ -73,7 +73,7 @@ function renderPRPreview(
 
   if (metadata.labels && metadata.labels.length > 0) {
     console.log(
-      colors.muted('│  ') + '🏷️  ' + metadata.labels.map((l) => colors.secondary(l)).join(' ')
+      colors.muted('│  ') + '🏷️  ' + metadata.labels.map((l) => colors.accent(l)).join(' ')
     );
   }
 
