@@ -237,7 +237,6 @@ export const doctorCommand = new Command('doctor')
 
     // Summary
     const errors = checks.filter((c) => c.status === 'error');
-    const _warnings = checks.filter((c) => c.status === 'warning');
 
     if (errors.length === 0) {
       console.log(UI.success('All checks passed! DevDaily is ready to use.'));

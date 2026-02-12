@@ -29,18 +29,12 @@ export interface GitHubPR {
  * Fetches issues, PRs, and project context
  */
 export class GitHubClient {
-  private _repoOwner: string | null = null;
-  private _repoName: string | null = null;
-
   /**
    * Check if we're in a GitHub repository
    */
   async isGitHubRepo(): Promise<boolean> {
     try {
-      const { stdout } = await execa('gh', ['repo', 'view', '--json', 'name,owner']);
-      const data = JSON.parse(stdout);
-      this._repoOwner = data.owner.login;
-      this._repoName = data.name;
+      await execa('gh', ['repo', 'view', '--json', 'name,owner']);
       return true;
     } catch {
       return false;

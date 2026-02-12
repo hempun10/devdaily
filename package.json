@@ -1,6 +1,6 @@
 {
   "name": "devdaily-ai",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Your AI memory for developer work - auto-generate PR descriptions, standup notes, and work summaries",
   "type": "module",
   "bin": {
@@ -34,12 +34,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/devdaily-ai.git"
+    "url": "https://github.com/hempun10/devdaily.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/devdaily-ai/issues"
+    "url": "https://github.com/hempun10/devdaily/issues"
   },
-  "homepage": "https://github.com/yourusername/devdaily-ai#readme",
+  "homepage": "https://github.com/hempun10/devdaily#readme",
   "files": [
     "dist",
     "README.md",
