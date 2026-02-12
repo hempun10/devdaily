@@ -12,13 +12,7 @@ export class CopilotClient {
 
   async suggest(prompt: string): Promise<string> {
     try {
-      const { stdout } = await execa('gh', [
-        'copilot',
-        'suggest',
-        '-t',
-        'shell',
-        prompt,
-      ]);
+      const { stdout } = await execa('gh', ['copilot', 'suggest', '-t', 'shell', prompt]);
 
       return this.parseOutput(stdout);
     } catch (error) {
@@ -38,10 +32,11 @@ export class CopilotClient {
   private parseOutput(raw: string): string {
     // The gh copilot CLI wraps output in UI elements
     // We need to extract just the AI response
-    
+
     // Remove ANSI codes
+    // eslint-disable-next-line no-control-regex
     const cleaned = raw.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
-    
+
     // Extract the actual suggestion (between prompts)
     const lines = cleaned.split('\n');
     const relevantLines = lines.filter(

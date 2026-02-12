@@ -2,7 +2,13 @@ import { Command } from 'commander';
 import { GitAnalyzer } from '../core/git-analyzer.js';
 import { CopilotClient } from '../core/copilot.js';
 import { UI } from '../utils/ui.js';
-import { spinner, copyToClipboard, getWeekStart, getWeekEnd, formatDateRange } from '../utils/helpers.js';
+import {
+  spinner,
+  copyToClipboard,
+  getWeekStart,
+  getWeekEnd,
+  formatDateRange,
+} from '../utils/helpers.js';
 
 export const weekCommand = new Command('week')
   .description('Generate weekly work summary')
@@ -33,7 +39,7 @@ export const weekCommand = new Command('week')
 
       // Get user info
       const user = await git.getCurrentUser();
-      
+
       // Get commits
       const commits = await git.getCommits({
         since: start,
@@ -68,7 +74,7 @@ export const weekCommand = new Command('week')
       // Display
       const title = `Week in Review (${formatDateRange(start, end)})`;
       const content = `${summary}\n\n${UI.divider()}\n${UI.dim(`${commits.length} commits • ${stats.insertions}+ ${stats.deletions}- lines`)}`;
-      
+
       console.log(UI.box(content, title));
 
       // Copy to clipboard

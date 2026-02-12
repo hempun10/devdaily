@@ -36,7 +36,7 @@ export const prCommand = new Command('pr')
     try {
       // Get current branch
       const currentBranch = await git.getCurrentBranch();
-      
+
       if (currentBranch === options.base) {
         load.stop();
         console.log(UI.error(`Cannot create PR from ${options.base} branch`));
@@ -46,7 +46,7 @@ export const prCommand = new Command('pr')
 
       // Get commits on this branch
       const commits = await git.getCommits();
-      
+
       if (commits.length === 0) {
         load.stop();
         console.log(UI.warning('No commits on this branch'));
@@ -55,7 +55,7 @@ export const prCommand = new Command('pr')
 
       // Get changed files
       const files = await git.getChangedFiles(options.base);
-      
+
       // Extract issue numbers
       const commitMessages = commits.map((c) => c.message);
       const allText = commitMessages.join(' ');
@@ -78,10 +78,12 @@ export const prCommand = new Command('pr')
       load.stop();
 
       // Display
-      console.log(UI.box(
-        `${UI.colors.bold(suggestedTitle)}\n\n${description}\n\n${UI.divider()}\n${UI.dim(`${commits.length} commits • ${files.length} files changed • ${prType}`)}`,
-        `PR Description for ${currentBranch}`
-      ));
+      console.log(
+        UI.box(
+          `${UI.colors.bold(suggestedTitle)}\n\n${description}\n\n${UI.divider()}\n${UI.dim(`${commits.length} commits • ${files.length} files changed • ${prType}`)}`,
+          `PR Description for ${currentBranch}`
+        )
+      );
 
       // Interactive options
       const { action } = await inquirer.prompt([
@@ -108,9 +110,9 @@ export const prCommand = new Command('pr')
         await open(`https://github.com`);
       } else if (action === 'create' || action === 'draft') {
         const isDraft = action === 'draft' || options.draft;
-        
+
         const createSpinner = spinner(`Creating ${isDraft ? 'draft ' : ''}PR...`).start();
-        
+
         try {
           const args = [
             'pr',
@@ -122,13 +124,13 @@ export const prCommand = new Command('pr')
             '--base',
             options.base,
           ];
-          
+
           if (isDraft) {
             args.push('--draft');
           }
-          
+
           const { stdout } = await execa('gh', args);
-          
+
           createSpinner.stop();
           console.log(UI.success('PR created successfully'));
           console.log(UI.dim(stdout));

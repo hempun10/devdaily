@@ -32,7 +32,7 @@ export const standupCommand = new Command('standup')
     try {
       // Get user info
       const user = await git.getCurrentUser();
-      
+
       // Get commits
       const days = parseInt(options.days, 10);
       const since = getDaysAgo(days);
@@ -59,7 +59,7 @@ export const standupCommand = new Command('standup')
       // Format output
       const title = days === 1 ? 'Your Standup' : `Your Work (Last ${days} Days)`;
       const content = `${standup}\n\n${UI.divider()}\n${UI.dim(`${commits.length} commits analyzed`)}`;
-      
+
       console.log(UI.box(content, title));
 
       // Copy to clipboard

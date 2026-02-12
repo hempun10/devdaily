@@ -6,7 +6,7 @@ export async function copyToClipboard(text: string): Promise<void> {
   try {
     await clipboard.write(text);
     console.log(UI.success('Copied to clipboard'));
-  } catch (error) {
+  } catch {
     console.log(UI.warning('Failed to copy to clipboard'));
   }
 }

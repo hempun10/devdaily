@@ -63,7 +63,7 @@ export class GitAnalyzer {
 
   async getDiffStats(base: string = 'main', head: string = 'HEAD'): Promise<DiffStats> {
     const diffSummary = await this.git.diffSummary([`${base}...${head}`]);
-    
+
     return {
       filesChanged: diffSummary.files.length,
       insertions: diffSummary.insertions,
@@ -79,7 +79,7 @@ export class GitAnalyzer {
   async getCurrentUser(): Promise<{ name: string; email: string }> {
     const name = await this.git.getConfig('user.name');
     const email = await this.git.getConfig('user.email');
-    
+
     return {
       name: name.value || '',
       email: email.value || '',
@@ -88,7 +88,7 @@ export class GitAnalyzer {
 
   async getStatus(): Promise<{ modified: string[]; untracked: string[] }> {
     const status = await this.git.status();
-    
+
     return {
       modified: status.modified,
       untracked: status.not_added,

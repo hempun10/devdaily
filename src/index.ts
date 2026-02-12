@@ -7,10 +7,7 @@ import { contextCommand } from './commands/context.js';
 
 const program = new Command();
 
-program
-  .name('devdaily')
-  .description('Your AI memory for developer work')
-  .version('1.0.0');
+program.name('devdaily').description('Your AI memory for developer work').version('1.0.0');
 
 // Register commands
 program.addCommand(standupCommand);

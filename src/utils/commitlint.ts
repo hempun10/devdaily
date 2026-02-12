@@ -1,10 +1,12 @@
 import type { ConventionalCommit } from '../types/index.js';
 
-const COMMIT_PATTERN = /^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\([^\)]+\))?(!)?:\s*(.+)$/;
+const COMMIT_PATTERN =
+  // eslint-disable-next-line no-useless-escape
+  /^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\([^\)]+\))?(!)?:\s*(.+)$/;
 
 export function parseConventionalCommit(message: string): ConventionalCommit | null {
   const match = message.match(COMMIT_PATTERN);
-  
+
   if (!match) {
     return null;
   }

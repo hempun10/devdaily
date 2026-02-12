@@ -67,18 +67,12 @@ export class UI {
       return Math.max(h.length, maxRowWidth);
     });
 
-    const headerRow = headers
-      .map((h, i) => h.padEnd(colWidths[i]))
-      .join('  ');
-    
-    const separator = colWidths
-      .map((w) => '─'.repeat(w))
-      .join('  ');
-    
+    const headerRow = headers.map((h, i) => h.padEnd(colWidths[i])).join('  ');
+
+    const separator = colWidths.map((w) => '─'.repeat(w)).join('  ');
+
     const dataRows = rows
-      .map((row) =>
-        row.map((cell, i) => cell.padEnd(colWidths[i])).join('  ')
-      )
+      .map((row) => row.map((cell, i) => cell.padEnd(colWidths[i])).join('  '))
       .join('\n');
 
     return `${this.colors.bold(headerRow)}\n${this.colors.dim(separator)}\n${dataRows}`;
@@ -89,7 +83,7 @@ export class UI {
     const barLength = 30;
     const filled = Math.round((barLength * current) / total);
     const bar = '█'.repeat(filled) + '░'.repeat(barLength - filled);
-    
+
     return `${label} ${this.colors.primary(bar)} ${percentage}%`;
   }
 }
