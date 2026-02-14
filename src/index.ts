@@ -8,6 +8,7 @@ import { initCommand } from './commands/init.js';
 import { configCommand } from './commands/config.js';
 import { dashCommand } from './commands/dash.js';
 import { doctorCommand } from './commands/doctor.js';
+import { connectCommand } from './commands/connect.js';
 import { renderMainHelp } from './ui/help.js';
 import UI from './ui/renderer.js';
 
@@ -41,12 +42,14 @@ program.addCommand(initCommand);
 program.addCommand(configCommand);
 program.addCommand(dashCommand);
 program.addCommand(doctorCommand);
+program.addCommand(connectCommand);
 
 // Add aliases
 standupCommand.alias('s').alias('su').alias('daily');
 prCommand.alias('p').alias('pull');
 weekCommand.alias('w').alias('weekly');
 doctorCommand.alias('check').alias('setup');
+connectCommand.alias('pm').alias('link');
 
 // Default action (no command) - show help
 program.action(async () => {
