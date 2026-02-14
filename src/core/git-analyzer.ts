@@ -8,6 +8,24 @@ export class GitAnalyzer {
     this.git = simpleGit(repoPath || process.cwd());
   }
 
+  /**
+   * Get files changed in a specific commit by hash
+   */
+  async getCommitFiles(commitHash: string): Promise<string[]> {
+    try {
+      const result = await this.git.raw([
+        'diff-tree',
+        '--no-commit-id',
+        '--name-only',
+        '-r',
+        commitHash,
+      ]);
+      return result.split('\n').filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
   async isRepository(): Promise<boolean> {
     try {
       await this.git.revparse(['--is-inside-work-tree']);

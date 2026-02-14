@@ -1,6 +1,7 @@
 import { execa } from 'execa';
 import { type Ticket } from './project-management.js';
 import { type WorkContext } from './context-analyzer.js';
+import { type StandupContext, StandupContextBuilder } from './standup-context.js';
 
 export interface IssueContext {
   number: number;
@@ -11,6 +12,11 @@ export interface IssueContext {
 
 export class CopilotClient {
   private copilotTypeCache: 'new' | 'legacy' | null | undefined = undefined;
+  private debugMode: boolean;
+
+  constructor(options?: { debug?: boolean }) {
+    this.debugMode = options?.debug ?? process.env.DEVD_DEBUG === '1';
+  }
 
   /**
    * Check if the new GitHub Copilot CLI is installed
@@ -90,17 +96,32 @@ export class CopilotClient {
   }
 
   async suggest(prompt: string): Promise<string> {
+    if (this.debugMode) {
+      console.log('\n┌─── DEBUG: Prompt sent to Copilot ───────────────────┐');
+      console.log(prompt);
+      console.log('└─── END Prompt ──────────────────────────────────────┘\n');
+    }
+
     const copilotType = await this.getCopilotType();
 
+    let result: string;
     if (copilotType === 'new') {
-      return this.executeNewCopilot(prompt);
+      result = await this.executeNewCopilot(prompt);
     } else if (copilotType === 'legacy') {
-      return this.executeLegacyCopilot(prompt);
+      result = await this.executeLegacyCopilot(prompt);
     } else {
       throw new Error(
         'GitHub Copilot CLI is not installed. Install it with: brew install copilot-cli'
       );
     }
+
+    if (this.debugMode) {
+      console.log('\n┌─── DEBUG: Raw Copilot response ─────────────────────┐');
+      console.log(result);
+      console.log('└─── END Response ───────────────────────────────────┘\n');
+    }
+
+    return result;
   }
 
   async explain(code: string): Promise<string> {
@@ -124,6 +145,7 @@ export class CopilotClient {
 
   private parseOutput(raw: string): string {
     // Remove ANSI codes
+
     // eslint-disable-next-line no-control-regex
     const cleaned = raw.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
 
@@ -151,7 +173,13 @@ export class CopilotClient {
     if (tickets.length === 0) return '';
 
     const ticketContexts = tickets.map((ticket) => {
-      const description = ticket.description?.slice(0, 200) || 'No description';
+      const raw =
+        typeof ticket.description === 'string'
+          ? ticket.description
+          : ticket.description
+            ? String(ticket.description)
+            : '';
+      const description = raw.slice(0, 200) || 'No description';
       const priority = ticket.priority ? ` (${ticket.priority})` : '';
 
       return `  - ${ticket.id} [${ticket.type}${priority}]: ${ticket.title}\n    Context: ${description}`;
@@ -163,26 +191,71 @@ export class CopilotClient {
   /**
    * Format work context into prompt context
    */
-  private formatWorkContext(context?: WorkContext): string {
+  private formatWorkContext(context?: Partial<WorkContext>): string {
     if (!context) return '';
 
     const lines: string[] = ['Work Context:'];
 
-    if (context.tickets.length > 0) {
+    if (context.tickets && context.tickets.length > 0) {
       lines.push(`  Tickets: ${context.tickets.map((t) => t.id).join(', ')}`);
     }
 
-    if (context.categories.length > 0) {
+    if (context.categories && context.categories.length > 0) {
       const cats = context.categories.slice(0, 3).map((c) => `${c.name} (${c.percentage}%)`);
       lines.push(`  Work areas: ${cats.join(', ')}`);
     }
 
-    lines.push(`  Files changed: ${context.filesChanged.length}`);
-    lines.push(`  Branch: ${context.branch}`);
+    if (context.filesChanged) {
+      lines.push(`  Files changed: ${context.filesChanged.length}`);
+    }
+
+    if (context.branch) {
+      lines.push(`  Branch: ${context.branch}`);
+    }
+
+    if (context.authors && context.authors.length > 1) {
+      lines.push(`  Contributors: ${context.authors.join(', ')}`);
+    }
+
+    if (context.timeRange) {
+      lines.push(`  Duration: ${context.timeRange.durationHours} hours`);
+    }
 
     return '\n' + lines.join('\n');
   }
 
+  /**
+   * Generate standup from rich structured context (new approach).
+   * Uses StandupContextBuilder's factual prompt instead of loose commit messages.
+   */
+  async generateStandupFromContext(
+    ctx: StandupContext,
+    tone: 'engineering' | 'mixed' | 'business' = 'mixed'
+  ): Promise<string> {
+    const prompt = StandupContextBuilder.buildStandupPrompt(ctx, tone);
+    return this.suggest(prompt);
+  }
+
+  /**
+   * Generate weekly summary from rich structured context (new approach).
+   */
+  async generateWeeklyFromContext(ctx: StandupContext): Promise<string> {
+    const prompt = StandupContextBuilder.buildWeeklyPrompt(ctx);
+    return this.suggest(prompt);
+  }
+
+  /**
+   * Generate output from a pre-built prompt string.
+   * Useful for custom prompt flows (debug, preview, etc.).
+   */
+  async generateFromPrompt(prompt: string): Promise<string> {
+    return this.suggest(prompt);
+  }
+
+  /**
+   * @deprecated Use generateStandupFromContext() for accurate results.
+   * Kept for backwards compatibility.
+   */
   async summarizeCommits(
     commits: string[],
     tickets: Ticket[] = [],
@@ -419,6 +492,10 @@ Generate a JSON object with the following fields (respond with ONLY the JSON, no
     return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'chore';
   }
 
+  /**
+   * @deprecated Use generateWeeklyFromContext() for accurate results.
+   * Kept for backwards compatibility.
+   */
   async generateWeeklySummary(data: {
     commits: string[];
     stats: {
@@ -468,5 +545,12 @@ Requirements:
 `;
 
     return this.suggest(prompt);
+  }
+
+  /**
+   * Check if debug mode is enabled
+   */
+  isDebugEnabled(): boolean {
+    return this.debugMode;
   }
 }

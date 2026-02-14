@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { GitAnalyzer } from '../core/git-analyzer.js';
 import { CopilotClient } from '../core/copilot.js';
-import { getProjectManagementClient, type Ticket } from '../core/project-management.js';
+import { StandupContextBuilder } from '../core/standup-context.js';
 import UI from '../ui/renderer.js';
 import { ASCII } from '../ui/ascii.js';
 import { copyToClipboard, getWeekStart, getWeekEnd, formatDateRange } from '../utils/helpers.js';
@@ -10,16 +10,19 @@ import { getConfig } from '../config/index.js';
 const { colors } = UI;
 
 export const weekCommand = new Command('week')
-  .description('Generate weekly work summary')
+  .description('Generate weekly work summary from commits, PRs, and tickets')
   .option('-l, --last', 'Last week instead of current week')
   .option('-s, --start <date>', 'Custom start date (YYYY-MM-DD)')
   .option('--no-tickets', 'Skip fetching closed tickets/issues')
+  .option('--no-prs', 'Skip fetching PR context')
   .option('--no-copy', 'Do not copy to clipboard')
+  .option('--debug', 'Show the full context and prompt sent to Copilot')
+  .option('--raw-context', 'Output only the raw context block (no AI generation)')
   .action(async (options) => {
     const config = getConfig();
     const git = new GitAnalyzer();
-    const copilot = new CopilotClient();
-    const pmClient = getProjectManagementClient();
+    const isDebug = options.debug || process.env.DEVD_DEBUG === '1';
+    const copilot = new CopilotClient({ debug: isDebug });
 
     // Check if in git repo
     if (!(await git.isRepository())) {
@@ -27,14 +30,14 @@ export const weekCommand = new Command('week')
       process.exit(1);
     }
 
-    // Check if Copilot CLI is installed
-    if (!(await copilot.isInstalled())) {
+    // Check if Copilot CLI is installed (unless raw-context mode)
+    if (!options.rawContext && !(await copilot.isInstalled())) {
       console.log(UI.error('GitHub Copilot CLI not found'));
       console.log(UI.info('Install with: gh extension install github/gh-copilot'));
       process.exit(1);
     }
 
-    const spinner = UI.spinner('Analyzing your week...');
+    const spinner = UI.spinner('Gathering weekly work context...');
     spinner.start();
 
     try {
@@ -50,67 +53,82 @@ export const weekCommand = new Command('week')
         end = getWeekEnd(weeksAgo);
       }
 
-      // Get commits
-      const commits = await git.getCommits({
-        since: start,
-        until: end,
+      // Calculate days for the context builder
+      const now = new Date();
+      const daysSinceStart = Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+
+      // ── Phase 1: Build rich context using StandupContextBuilder ────────
+      spinner.text = 'Analyzing git history, PRs, and tickets...';
+
+      const contextBuilder = new StandupContextBuilder();
+      const ctx = await contextBuilder.build({
+        days: daysSinceStart,
+        skipTickets: options.tickets === false,
+        skipPRs: options.prs === false,
+        baseBranch: config.git.defaultBranch,
+        debug: isDebug,
       });
 
-      if (commits.length === 0) {
+      if (ctx.commits.length === 0 && ctx.pullRequests.length === 0) {
         spinner.stop();
         console.log('');
-        console.log(UI.warning('No commits found for this week'));
+        console.log(UI.warning('No commits or PRs found for this week'));
         process.exit(0);
       }
 
-      // Get stats
-      const stats = await git.getDiffStats(config.git.defaultBranch);
-
-      // Fetch closed tickets for this week for better context
-      let closedTickets: Ticket[] = [];
-      if (options.tickets !== false) {
-        spinner.text = `Fetching closed ${config.projectManagement.tool} tickets...`;
-        try {
-          if (await pmClient.isConfigured()) {
-            closedTickets = await pmClient.getRecentlyClosedTickets(7);
-          }
-        } catch {
-          // Expected: fails when PM tool is not configured or credentials are missing.
-          // Proceed without closed ticket context — summary will still work from commits.
-        }
-      }
-
-      spinner.text = 'Generating summary with Copilot CLI...';
-
-      // Generate summary with ticket context
-      const commitMessages = commits.map((c) => c.message);
-      const summary = await copilot.generateWeeklySummary({
-        commits: commitMessages,
-        stats: {
-          commits: commits.length,
-          linesAdded: stats.insertions,
-          linesRemoved: stats.deletions,
-        },
-        closedTickets,
-      });
-
       spinner.stop();
 
-      // Display
+      // ── Debug mode: show full context ──────────────────────────────────
+      if (isDebug) {
+        console.log('');
+        console.log(colors.accent('─── Debug: Assembled Context ───'));
+        console.log(StandupContextBuilder.formatDebugSummary(ctx));
+        console.log('');
+        console.log(colors.accent('─── Debug: Full Prompt Context Block ───'));
+        console.log(colors.muted(StandupContextBuilder.formatForPrompt(ctx)));
+        console.log('');
+      }
+
+      // ── Raw context mode: just output the context block ────────────────
+      if (options.rawContext) {
+        console.log('');
+        console.log(StandupContextBuilder.formatForPrompt(ctx));
+        return;
+      }
+
+      // ── Phase 2: Generate weekly summary with AI ───────────────────────
+      const genSpinner = UI.spinner('Generating weekly summary with Copilot CLI...');
+      genSpinner.start();
+
+      const summary = await copilot.generateWeeklyFromContext(ctx);
+
+      genSpinner.stop();
+
+      // ── Phase 3: Output ────────────────────────────────────────────────
       const title = `${ASCII.icons.week} Week in Review (${formatDateRange(start, end)})`;
 
       console.log('');
       console.log(UI.box(summary, title));
 
-      // Stats
+      // Stats bar
       if (config.output.showStats) {
         const statItems: { label: string; value: string | number; color?: string }[] = [
-          { label: 'commits', value: commits.length },
-          { label: 'lines added', value: `+${stats.insertions}`, color: 'green' },
-          { label: 'lines removed', value: `-${stats.deletions}`, color: 'red' },
+          { label: 'commits', value: ctx.commits.length },
         ];
-        if (closedTickets.length > 0) {
-          statItems.push({ label: 'tickets closed', value: closedTickets.length });
+        if (ctx.diffStats) {
+          statItems.push(
+            { label: 'lines added', value: `+${ctx.diffStats.insertions}`, color: 'green' },
+            { label: 'lines removed', value: `-${ctx.diffStats.deletions}`, color: 'red' }
+          );
+        }
+        if (ctx.pullRequests.length > 0) {
+          statItems.push({ label: 'PRs', value: ctx.pullRequests.length });
+        }
+        if (ctx.tickets.length > 0) {
+          statItems.push({ label: 'tickets', value: ctx.tickets.length });
+        }
+        if (ctx.categories.length > 0) {
+          statItems.push({ label: 'primary area', value: ctx.categories[0].name });
         }
         console.log(UI.stats(statItems));
       }
@@ -126,6 +144,13 @@ export const weekCommand = new Command('week')
       console.log('');
       console.log(UI.error('Failed to generate weekly summary'));
       console.log(colors.muted((error as Error).message));
+
+      if (isDebug && error instanceof Error && error.stack) {
+        console.log('');
+        console.log(colors.muted('Stack trace:'));
+        console.log(colors.muted(error.stack));
+      }
+
       process.exit(1);
     }
   });
