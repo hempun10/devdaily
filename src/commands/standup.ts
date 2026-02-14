@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { GitAnalyzer } from '../core/git-analyzer.js';
 import { CopilotClient } from '../core/copilot.js';
+import { ContextAnalyzer } from '../core/context-analyzer.js';
 import {
   getProjectManagementClient,
   extractTicketIds,
@@ -24,11 +25,17 @@ export const standupCommand = new Command('standup')
   .option('--send', 'Send to configured notification channels (Slack/Discord)')
   .option('--slack', 'Send to Slack')
   .option('--discord', 'Send to Discord')
+  .option('--context', 'Show detailed work context analysis')
   .action(async (options) => {
     const config = getConfig();
     const git = new GitAnalyzer();
     const copilot = new CopilotClient();
     const pmClient = getProjectManagementClient();
+    const contextAnalyzer = new ContextAnalyzer(
+      undefined,
+      config.projectManagement.tool,
+      config.projectManagement.ticketPrefix
+    );
 
     // Check if in git repo
     if (!(await git.isRepository())) {
@@ -64,6 +71,44 @@ export const standupCommand = new Command('standup')
         process.exit(0);
       }
 
+      // Get enhanced work context
+      spinner.text = 'Analyzing work context...';
+      const workContext = await contextAnalyzer.getWorkContext({
+        since,
+        base: config.git.defaultBranch,
+      });
+
+      // Show context analysis if requested
+      if (options.context) {
+        spinner.stop();
+        console.log('');
+        console.log(UI.section('Work Context Analysis'));
+        console.log('');
+        console.log(`  ${colors.accent('Branch:')} ${workContext.branch}`);
+
+        if (workContext.tickets.length > 0) {
+          const ticketStr = workContext.tickets.map((t) => `${t.id} (${t.type})`).join(', ');
+          console.log(`  ${colors.accent('Tickets:')} ${ticketStr}`);
+        }
+
+        if (workContext.categories.length > 0) {
+          console.log(`  ${colors.accent('Work Categories:')}`);
+          for (const cat of workContext.categories.slice(0, 4)) {
+            const bar =
+              '█'.repeat(Math.round(cat.percentage / 5)) +
+              '░'.repeat(20 - Math.round(cat.percentage / 5));
+            console.log(`    ${cat.name.padEnd(12)} ${bar} ${cat.percentage}%`);
+          }
+        }
+
+        console.log(
+          `  ${colors.accent('Time Span:')} ${workContext.timeRange.durationHours} hours`
+        );
+        console.log(`  ${colors.accent('Files Changed:')} ${workContext.filesChanged.length}`);
+        console.log('');
+        spinner.start();
+      }
+
       // Extract ticket IDs from commits and fetch context
       const commitMessages = commits.map((c) => c.message);
       let tickets: Ticket[] = [];
@@ -92,8 +137,8 @@ export const standupCommand = new Command('standup')
 
       spinner.text = 'Generating standup notes with Copilot CLI...';
 
-      // Generate standup using Copilot with ticket context
-      const standup = await copilot.summarizeCommits(commitMessages, tickets);
+      // Generate standup using Copilot with ticket context and work context
+      const standup = await copilot.summarizeCommits(commitMessages, tickets, workContext);
 
       spinner.stop();
 
@@ -111,6 +156,9 @@ export const standupCommand = new Command('standup')
         ];
         if (tickets.length > 0) {
           statItems.push({ label: 'tickets linked', value: tickets.length });
+        }
+        if (workContext.categories.length > 0) {
+          statItems.push({ label: 'primary area', value: workContext.summary.primaryCategory });
         }
         console.log(UI.stats(statItems));
       }

@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-14
+
+### Added
+
+- **Context Analyzer** - Smart work context extraction from git activity
+  - Branch → Ticket correlation (JIRA-123, #123, LINEAR-123 patterns)
+  - Work categorization (frontend, backend, infra, docs, tests, config)
+  - Time-based work session tracking
+- **Enhanced Standup Context** - `--context` flag shows detailed work analysis
+- **JSON Schema for IDE** - Autocomplete support in `.devdaily.json` config files
+- **PR Config Defaults** - Set default reviewers, assignees, and labels in config
+- **Standup Scheduling** - Configure standup schedule and grouping options
+
+### Changed
+
+- Config now includes `$schema` reference for IDE autocomplete
+- Standup generation uses work categories and ticket context for better AI summaries
+- Expanded PR and standup config options (defaultReviewers, defaultLabels, groupBy, etc.)
+
+### Technical
+
+- New `src/core/context-analyzer.ts` for rich context extraction
+- Added `schemas/devdaily.schema.json` for config validation
+- Updated config schema with more standup/PR options
+
 ## [0.2.0] - 2026-02-13
 
 ### Added
@@ -65,5 +90,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for custom date ranges
 - No emoji output (professional terminal style)
 
+[0.3.0]: https://github.com/hempun10/devdaily/releases/tag/v0.3.0
 [0.2.0]: https://github.com/hempun10/devdaily/releases/tag/v0.2.0
 [0.1.0]: https://github.com/hempun10/devdaily/releases/tag/v0.1.0

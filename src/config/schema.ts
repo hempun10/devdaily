@@ -168,6 +168,17 @@ export const ConfigSchema = z.object({
       defaultDays: z.number().default(1),
       includeWIP: z.boolean().default(false),
       template: z.string().optional(),
+      sections: z
+        .array(z.enum(['completed', 'in-progress', 'blockers', 'tickets', 'stats']))
+        .default(['completed', 'in-progress', 'blockers']),
+      groupBy: z.enum(['ticket', 'category', 'time', 'none']).default('none'),
+      includeTicketLinks: z.boolean().default(true),
+      scheduleTime: z.string().optional(),
+      scheduleDays: z
+        .array(
+          z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])
+        )
+        .default(['monday', 'tuesday', 'wednesday', 'thursday', 'friday']),
     })
     .default({}),
 
@@ -177,6 +188,11 @@ export const ConfigSchema = z.object({
       defaultBase: z.string().default('main'),
       template: z.string().optional(),
       autoLabels: z.boolean().default(true),
+      defaultLabels: z.array(z.string()).default([]),
+      defaultReviewers: z.array(z.string()).default([]),
+      defaultAssignees: z.array(z.string()).default([]),
+      titleFormat: z.enum(['conventional', 'ticket-first', 'plain']).default('conventional'),
+      includeTicketInTitle: z.boolean().default(true),
     })
     .default({}),
 

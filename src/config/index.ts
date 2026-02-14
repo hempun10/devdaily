@@ -216,7 +216,13 @@ export class ConfigManager {
   saveLocal(config?: Partial<Config>): void {
     const localPath = join(process.cwd(), LOCAL_CONFIG_FILENAME);
     const toSave = config ? ConfigSchema.parse({ ...this.config, ...config }) : this.config;
-    writeFileSync(localPath, JSON.stringify(toSave, null, 2));
+    // Add JSON schema reference for IDE autocomplete
+    const withSchema = {
+      $schema:
+        'https://raw.githubusercontent.com/hempun10/devdaily/main/schemas/devdaily.schema.json',
+      ...toSave,
+    };
+    writeFileSync(localPath, JSON.stringify(withSchema, null, 2));
   }
 
   saveSecrets(secrets: Secrets, global = false): void {

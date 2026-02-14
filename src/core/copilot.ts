@@ -1,5 +1,6 @@
 import { execa } from 'execa';
 import { type Ticket } from './project-management.js';
+import { type WorkContext } from './context-analyzer.js';
 
 export interface IssueContext {
   number: number;
@@ -151,8 +152,36 @@ export class CopilotClient {
     return `\nRelated Tickets/Tasks (for context on WHY these changes were made):\n${ticketContexts.join('\n')}`;
   }
 
-  async summarizeCommits(commits: string[], tickets: Ticket[] = []): Promise<string> {
+  /**
+   * Format work context into prompt context
+   */
+  private formatWorkContext(context?: WorkContext): string {
+    if (!context) return '';
+
+    const lines: string[] = ['Work Context:'];
+
+    if (context.tickets.length > 0) {
+      lines.push(`  Tickets: ${context.tickets.map((t) => t.id).join(', ')}`);
+    }
+
+    if (context.categories.length > 0) {
+      const cats = context.categories.slice(0, 3).map((c) => `${c.name} (${c.percentage}%)`);
+      lines.push(`  Work areas: ${cats.join(', ')}`);
+    }
+
+    lines.push(`  Files changed: ${context.filesChanged.length}`);
+    lines.push(`  Branch: ${context.branch}`);
+
+    return '\n' + lines.join('\n');
+  }
+
+  async summarizeCommits(
+    commits: string[],
+    tickets: Ticket[] = [],
+    workContext?: WorkContext
+  ): Promise<string> {
     const ticketContext = this.formatTicketContext(tickets);
+    const contextInfo = this.formatWorkContext(workContext);
 
     const prompt = `
 You are helping a developer write their daily standup update for a team meeting.
@@ -161,6 +190,7 @@ This will be shared with both technical and non-technical team members (managers
 Here are their git commits from yesterday:
 ${commits.map((c, i) => `${i + 1}. ${c}`).join('\n')}
 ${ticketContext}
+${contextInfo}
 
 Write a friendly, conversational standup update that anyone can understand.
 

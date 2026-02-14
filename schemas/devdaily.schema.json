@@ -1,0 +1,330 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://devdaily.dev/schemas/config.json",
+  "title": "DevDaily Configuration",
+  "description": "Configuration schema for DevDaily AI CLI tool",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference for IDE autocomplete"
+    },
+    "version": {
+      "type": "number",
+      "default": 1,
+      "description": "Configuration version for migrations"
+    },
+    "theme": {
+      "type": "object",
+      "description": "Terminal color theme",
+      "properties": {
+        "primary": { "type": "string", "default": "blue" },
+        "success": { "type": "string", "default": "green" },
+        "warning": { "type": "string", "default": "yellow" },
+        "error": { "type": "string", "default": "red" },
+        "accent": { "type": "string", "default": "cyan" },
+        "muted": { "type": "string", "default": "gray" }
+      }
+    },
+    "ascii": {
+      "type": "boolean",
+      "default": true,
+      "description": "Show ASCII art banner"
+    },
+    "animations": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable terminal animations"
+    },
+    "compactMode": {
+      "type": "boolean",
+      "default": false,
+      "description": "Use compact output format"
+    },
+    "timezone": {
+      "type": "string",
+      "default": "America/New_York",
+      "description": "Timezone for scheduling (IANA timezone name)",
+      "examples": ["America/New_York", "Europe/London", "Asia/Tokyo", "UTC"]
+    },
+    "aliases": {
+      "type": "object",
+      "description": "Command aliases",
+      "properties": {
+        "standup": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["s", "su", "daily"]
+        },
+        "pr": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["p", "pull"]
+        },
+        "week": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["w", "weekly"]
+        },
+        "dash": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["d", "dashboard"]
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "description": "Output preferences",
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["markdown", "slack", "plain", "json"],
+          "default": "markdown"
+        },
+        "copyToClipboard": {
+          "type": "boolean",
+          "default": true
+        },
+        "showStats": {
+          "type": "boolean",
+          "default": true
+        },
+        "verbose": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "git": {
+      "type": "object",
+      "description": "Git settings",
+      "properties": {
+        "defaultBranch": {
+          "type": "string",
+          "default": "main"
+        },
+        "excludeAuthors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "excludePatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["merge commit", "Merge branch"]
+        }
+      }
+    },
+    "projectManagement": {
+      "type": "object",
+      "description": "Project management tool integration",
+      "properties": {
+        "tool": {
+          "type": "string",
+          "enum": ["github", "jira", "linear", "notion", "none"],
+          "default": "github",
+          "description": "Primary PM tool for ticket tracking"
+        },
+        "ticketPrefix": {
+          "type": "string",
+          "description": "Ticket prefix pattern (e.g., 'PROJ', 'ENG', 'DEV')",
+          "examples": ["PROJ", "ENG", "DEV", "TEAM"]
+        },
+        "ticketPattern": {
+          "type": "string",
+          "description": "Custom regex for ticket extraction"
+        },
+        "jira": {
+          "type": "object",
+          "properties": {
+            "baseUrl": {
+              "type": "string",
+              "description": "Jira instance URL",
+              "examples": ["https://yourcompany.atlassian.net"]
+            },
+            "projectKey": { "type": "string" },
+            "useApiToken": { "type": "boolean", "default": true }
+          }
+        },
+        "linear": {
+          "type": "object",
+          "properties": {
+            "teamKey": { "type": "string" },
+            "useApi": { "type": "boolean", "default": true }
+          }
+        },
+        "notion": {
+          "type": "object",
+          "properties": {
+            "databaseId": { "type": "string" },
+            "useApi": { "type": "boolean", "default": true }
+          }
+        }
+      }
+    },
+    "standup": {
+      "type": "object",
+      "description": "Standup generation settings",
+      "properties": {
+        "defaultDays": {
+          "type": "number",
+          "default": 1,
+          "description": "Default number of days to include"
+        },
+        "includeWIP": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include work-in-progress (uncommitted changes)"
+        },
+        "template": {
+          "type": "string",
+          "description": "Custom standup template"
+        },
+        "sections": {
+          "type": "array",
+          "description": "Sections to include in standup",
+          "items": {
+            "type": "string",
+            "enum": ["completed", "in-progress", "blockers", "tickets", "stats"]
+          },
+          "default": ["completed", "in-progress", "blockers"]
+        },
+        "groupBy": {
+          "type": "string",
+          "enum": ["ticket", "category", "time", "none"],
+          "default": "none",
+          "description": "How to group standup items"
+        },
+        "includeTicketLinks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include links to tickets"
+        },
+        "scheduleTime": {
+          "type": "string",
+          "description": "Auto-standup time (24h format)",
+          "pattern": "^([01]?[0-9]|2[0-3]):[0-5][0-9]$",
+          "examples": ["09:00", "08:30", "10:00"]
+        },
+        "scheduleDays": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+          },
+          "default": ["monday", "tuesday", "wednesday", "thursday", "friday"]
+        }
+      }
+    },
+    "pr": {
+      "type": "object",
+      "description": "Pull request generation settings",
+      "properties": {
+        "defaultBase": {
+          "type": "string",
+          "default": "main",
+          "description": "Default base branch for PRs"
+        },
+        "template": {
+          "type": "string",
+          "description": "Path to custom PR template"
+        },
+        "autoLabels": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically suggest labels based on changes"
+        },
+        "defaultLabels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Default labels to apply to PRs"
+        },
+        "defaultReviewers": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Default reviewers (GitHub usernames)"
+        },
+        "defaultAssignees": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Default assignees (GitHub usernames)"
+        },
+        "titleFormat": {
+          "type": "string",
+          "enum": ["conventional", "ticket-first", "plain"],
+          "default": "conventional",
+          "description": "PR title format style"
+        },
+        "includeTicketInTitle": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include ticket ID in PR title"
+        },
+        "bodyFormat": {
+          "type": "string",
+          "enum": ["template", "ai", "minimal"],
+          "default": "template",
+          "description": "PR body generation style"
+        }
+      }
+    },
+    "week": {
+      "type": "object",
+      "description": "Weekly summary settings",
+      "properties": {
+        "startDay": {
+          "type": "string",
+          "enum": ["sunday", "monday"],
+          "default": "monday"
+        },
+        "includeWeekends": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "notifications": {
+      "type": "object",
+      "description": "Notification settings (Slack/Discord)",
+      "properties": {
+        "slack": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "channel": { "type": "string" }
+          }
+        },
+        "discord": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean", "default": false }
+          }
+        },
+        "standupSchedule": {
+          "type": "string",
+          "description": "Cron expression for auto-standup"
+        },
+        "standupTimezone": {
+          "type": "string",
+          "default": "America/New_York"
+        }
+      }
+    },
+    "copilot": {
+      "type": "object",
+      "description": "AI/Copilot settings",
+      "properties": {
+        "timeout": {
+          "type": "number",
+          "default": 30000,
+          "description": "AI request timeout in milliseconds"
+        },
+        "retries": {
+          "type": "number",
+          "default": 2
+        }
+      }
+    }
+  }
+}
