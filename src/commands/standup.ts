@@ -9,6 +9,7 @@ import {
 import { sendNotification, formatStandupNotification } from '../core/notifications.js';
 import UI from '../ui/renderer.js';
 import { copyToClipboard } from '../utils/helpers.js';
+import { formatOutput, validateFormat } from '../utils/formatter.js';
 import { getConfig } from '../config/index.js';
 import { sideEffectSnapshot } from '../core/auto-snapshot.js';
 
@@ -31,9 +32,79 @@ export const standupCommand = new Command('standup')
   .option('--send', 'Send to configured notification channels (Slack/Discord)')
   .option('--slack', 'Send to Slack')
   .option('--discord', 'Send to Discord')
+  .option('--test-webhook', 'Send a test message to configured Slack/Discord webhooks')
   .option('--no-journal', 'Skip auto-saving a snapshot to the journal')
   .action(async (options) => {
     const config = getConfig();
+
+    // ── Test webhook mode ──────────────────────────────────────────────
+    if (options.testWebhook) {
+      console.log('');
+      console.log(UI.section('Webhook Test'));
+      console.log('');
+
+      const testMessage = formatStandupNotification(
+        '🧪 *Test message from DevDaily*\n\nIf you can see this, your webhook is configured correctly!\n\n• Slack: ✅ Connected\n• Discord: ✅ Connected\n• Timestamp: ' +
+          new Date().toLocaleString(),
+        [{ id: 'TEST-001', url: 'https://github.com', title: 'Sample ticket link' }]
+      );
+
+      const sendToSlack = options.slack || (!options.slack && !options.discord);
+      const sendToDiscord = options.discord || (!options.slack && !options.discord);
+
+      let anySuccess = false;
+      let anyFailure = false;
+
+      if (sendToSlack) {
+        try {
+          const result = await sendNotification(testMessage, { slack: true, discord: false });
+          if (result.slack) {
+            console.log(UI.success('Slack webhook test passed! Check your channel.'));
+            anySuccess = true;
+          } else if (result.slack === false) {
+            console.log(UI.error('Slack webhook test failed. The request was rejected.'));
+            anyFailure = true;
+          }
+        } catch (err) {
+          console.log(UI.error(`Slack webhook test failed: ${(err as Error).message}`));
+          anyFailure = true;
+        }
+      }
+
+      if (sendToDiscord) {
+        try {
+          const result = await sendNotification(testMessage, { slack: false, discord: true });
+          if (result.discord) {
+            console.log(UI.success('Discord webhook test passed! Check your channel.'));
+            anySuccess = true;
+          } else if (result.discord === false) {
+            console.log(UI.error('Discord webhook test failed. The request was rejected.'));
+            anyFailure = true;
+          }
+        } catch (err) {
+          console.log(UI.error(`Discord webhook test failed: ${(err as Error).message}`));
+          anyFailure = true;
+        }
+      }
+
+      if (!anySuccess && !anyFailure) {
+        console.log(UI.warning('No webhooks configured. Run: devdaily init --notifications'));
+      }
+
+      console.log('');
+      if (anyFailure) {
+        console.log(UI.info('Troubleshooting:'));
+        console.log(
+          colors.muted('  1. Check your webhook URL in .devdaily.secrets.json or config')
+        );
+        console.log(colors.muted('  2. Slack: https://api.slack.com/apps → Incoming Webhooks'));
+        console.log(colors.muted('  3. Discord: Server Settings → Integrations → Webhooks'));
+        console.log(colors.muted('  4. Re-run: devdaily init --notifications'));
+      }
+      console.log('');
+      return;
+    }
+
     const git = new GitAnalyzer();
     const isDebug = options.debug || process.env.DEVD_DEBUG === '1';
     const copilot = new CopilotClient({ debug: isDebug });
@@ -141,15 +212,35 @@ export const standupCommand = new Command('standup')
       const genSpinner = UI.spinner('Generating standup with Copilot CLI...');
       genSpinner.start();
 
-      const standup = await copilot.generateStandupFromContext(ctx, tone);
+      const rawStandup = await copilot.generateStandupFromContext(ctx, tone);
 
       genSpinner.stop();
+
+      // ── Phase 2.5: Apply output format ─────────────────────────────────
+      const outputFormat = validateFormat(options.format || config.output.format || 'markdown');
+      const formatted = formatOutput(rawStandup, outputFormat, {
+        title: days === 1 ? 'Daily Standup' : `Work Summary (${days} days)`,
+        commits: ctx.commits.length,
+        prs: ctx.pullRequests.length,
+        tickets: ctx.tickets.length,
+        days,
+        branch: ctx.branch,
+        repo: ctx.repo.name ?? undefined,
+      });
+
+      const standup = formatted.text;
 
       // ── Phase 3: Output ────────────────────────────────────────────────
       const title = days === 1 ? 'Your Standup' : `Your Work (Last ${days} Days)`;
 
-      console.log('');
-      console.log(UI.box(standup, title));
+      if (outputFormat === 'json') {
+        // JSON format: print raw JSON without the box decoration
+        console.log('');
+        console.log(standup);
+      } else {
+        console.log('');
+        console.log(UI.box(standup, title));
+      }
 
       // Stats bar
       if (config.output.showStats) {
@@ -182,7 +273,8 @@ export const standupCommand = new Command('standup')
       // ── Copy to clipboard ──────────────────────────────────────────────
       if (options.copy && config.output.copyToClipboard !== false) {
         await copyToClipboard(standup);
-        console.log(UI.success('Copied to clipboard'));
+        const formatLabel = outputFormat !== 'markdown' ? ` (${outputFormat})` : '';
+        console.log(UI.success(`Copied to clipboard${formatLabel}`));
       }
 
       // ── Send to notifications ──────────────────────────────────────────
