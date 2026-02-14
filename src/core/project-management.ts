@@ -14,6 +14,45 @@ import {
 } from './pm-errors.js';
 
 /**
+ * Extract plain text from a Jira ADF (Atlassian Document Format) object.
+ * Jira REST API v3 returns `description` as an ADF object, not a string.
+ * This recursively walks the ADF tree and concatenates text nodes.
+ */
+function extractAdfText(node: unknown): string {
+  if (node == null) return '';
+  if (typeof node === 'string') return node;
+  if (typeof node !== 'object') return String(node);
+
+  const obj = node as Record<string, unknown>;
+
+  // Text node — return its text value
+  if (obj.type === 'text' && typeof obj.text === 'string') {
+    return obj.text;
+  }
+
+  // Container node — recurse into content array
+  if (Array.isArray(obj.content)) {
+    const parts: string[] = [];
+    for (const child of obj.content) {
+      parts.push(extractAdfText(child));
+    }
+    // Join paragraphs / blocks with newlines, inline text without separator
+    const isBlock =
+      obj.type === 'doc' ||
+      obj.type === 'paragraph' ||
+      obj.type === 'bulletList' ||
+      obj.type === 'orderedList' ||
+      obj.type === 'listItem' ||
+      obj.type === 'blockquote' ||
+      obj.type === 'codeBlock' ||
+      obj.type === 'heading';
+    return parts.join(isBlock ? '\n' : '');
+  }
+
+  return '';
+}
+
+/**
  * Common interface for tickets/issues across different tools
  */
 export interface Ticket {
@@ -234,8 +273,12 @@ export abstract class ProjectManagementClient {
 
     if (ticket.description) {
       // Truncate description to first 200 chars
-      const desc = ticket.description.slice(0, 200).replace(/\n/g, ' ');
-      lines.push(`  ${desc}${ticket.description.length > 200 ? '...' : ''}`);
+      const raw =
+        typeof ticket.description === 'string' ? ticket.description : String(ticket.description);
+      const desc = raw.slice(0, 200).replace(/\n/g, ' ');
+      if (desc) {
+        lines.push(`  ${desc}${raw.length > 200 ? '...' : ''}`);
+      }
     }
 
     return lines.join('\n');
@@ -450,7 +493,7 @@ export class JiraClient extends ProjectManagementClient {
     return {
       id: issue.key as string,
       title: fields.summary as string,
-      description: (fields.description as string) || '',
+      description: extractAdfText(fields.description),
       status: (status?.name as string) || 'unknown',
       type: this.mapJiraType((issueType?.name as string) || ''),
       priority: priority ? this.mapJiraPriority(priority.name as string) : undefined,

@@ -12,6 +12,88 @@ Run the automated test suite:
 
 This will test all commands in the current repository.
 
+## PM Integration Testing
+
+DevDaily integrates with **GitHub Issues**, **Linear**, and **Jira** to enrich standup context with ticket metadata. A full integration test report is available at [`docs/reports/PM_INTEGRATION_TEST_REPORT.md`](reports/PM_INTEGRATION_TEST_REPORT.md).
+
+### Setup a Test Repo
+
+Use the provided scripts to create a disposable GitHub repo with issues, branches, commits, and PRs for end-to-end testing:
+
+```bash
+# 1. Create the GitHub repo + GitHub Issues
+./scripts/setup-test-repo.sh
+
+# 2. (Optional) Create matching Linear issues
+#    Get an API key from https://linear.app/settings/api
+export LINEAR_API_KEY="lin_api_..."
+export LINEAR_TEAM_KEY="ENG"     # your Linear team prefix
+python3 scripts/create-linear-issues.py
+
+# 3. Create branches, commits, and PRs referencing both PM tools
+./scripts/setup-test-commits.sh
+```
+
+### Run the Tests
+
+```bash
+cd /tmp/devdaily-test-ground
+
+# ── GitHub Issues ──
+echo '{"projectManagement":{"tool":"github","ticketPrefix":""}}' > .devdaily.json
+devdaily standup --days 7 --raw-context   # inspect the structured context block
+devdaily standup --days 7 --debug         # see prompt + AI response + ticket fetch logs
+devdaily standup --days 7                 # generate the standup
+
+# ── Linear ──
+echo '{"projectManagement":{"tool":"linear","ticketPrefix":"ENG"}}' > .devdaily.json
+devdaily standup --days 7 --raw-context
+devdaily standup --days 7 --debug
+devdaily standup --days 7
+```
+
+### What to Verify
+
+| Checkpoint                                 | How to check                                                    |
+| ------------------------------------------ | --------------------------------------------------------------- |
+| Ticket IDs extracted from commits/branches | `--raw-context` → look for `--- TICKETS/ISSUES ---` section     |
+| Ticket metadata fetched from PM API        | Descriptions, status, type, and URL should be populated         |
+| Tickets linked to PRs                      | `Linked tickets:` line under each PR in `--raw-context`         |
+| AI output references real ticket IDs       | Final standup should mention `#N` or `PREFIX-NN` identifiers    |
+| No crashes on non-string descriptions      | Jira ADF objects should be converted to plain text silently     |
+| Debug logging surfaces fetch failures      | `--debug` should print `[fetchTickets]` lines when issues occur |
+
+### Secrets Location
+
+PM tool API keys are stored in `~/.config/devdaily/secrets.json` (global) or `.devdaily.secrets.json` (local, gitignored):
+
+```json
+{
+  "linear": { "apiKey": "lin_api_..." },
+  "jira": { "email": "you@co.com", "apiToken": "...", "baseUrl": "https://co.atlassian.net" }
+}
+```
+
+> **Note:** GitHub Issues uses the `gh` CLI's auth session — no separate API key is needed.
+
+### Cleanup
+
+```bash
+gh auth refresh -h github.com -s delete_repo   # one-time scope grant
+gh repo delete hempun10/devdaily-test-ground --yes
+rm -rf /tmp/devdaily-test-ground
+```
+
+### Known Issues (Fixed)
+
+| Issue                                       | Root Cause                                                         | Fix                                          |
+| ------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------- |
+| `ticket.description.trim is not a function` | Jira API v3 returns description as ADF object, not string          | Added `extractAdfText()` recursive parser    |
+| Linear tickets show as "not fetched"        | Secrets written to `~/.devdaily/` instead of `~/.config/devdaily/` | Documented correct path; added debug logging |
+| PM errors silently swallowed                | `fetchTickets()` had bare `catch {}`                               | Added `--debug` mode logging                 |
+
+---
+
 ## Manual Testing
 
 ### Prerequisites
@@ -341,6 +423,34 @@ xdg-open coverage/index.html  # Linux
 ```
 
 ## Troubleshooting
+
+### PM Integration Issues
+
+1. **Tickets show as "not fetched":**
+
+   ```bash
+   # Check if PM tool is configured
+   devdaily standup --days 1 --debug 2>&1 | grep fetchTickets
+   # Look for "[fetchTickets] PM client (linear) is not configured"
+
+   # Verify secrets location
+   cat ~/.config/devdaily/secrets.json
+   ```
+
+2. **Jira description crash:**
+
+   ```bash
+   # Should be fixed — if it recurs, check the Jira API version
+   # API v3 returns ADF objects; extractAdfText() handles this
+   devdaily standup --days 3 --debug
+   ```
+
+3. **Linear API returns errors:**
+
+   ```bash
+   # Test the connection directly
+   devdaily connect --tool linear
+   ```
 
 ### Tests Failing
 

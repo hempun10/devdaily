@@ -39,3 +39,8 @@ coverage/
 *.seed
 *.pid.lock
 .cache/
+
+# DevDaily secrets (API tokens, credentials)
+.devdaily.secrets.json
+secrets.json
+*.secrets.json
