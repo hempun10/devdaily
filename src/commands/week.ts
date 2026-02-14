@@ -64,7 +64,7 @@ export const weekCommand = new Command('week')
       }
 
       // Get stats
-      const stats = await git.getDiffStats();
+      const stats = await git.getDiffStats(config.git.defaultBranch);
 
       // Fetch closed tickets for this week for better context
       let closedTickets: Ticket[] = [];
@@ -75,7 +75,8 @@ export const weekCommand = new Command('week')
             closedTickets = await pmClient.getRecentlyClosedTickets(7);
           }
         } catch {
-          // Silently continue if tool not configured
+          // Expected: fails when PM tool is not configured or credentials are missing.
+          // Proceed without closed ticket context — summary will still work from commits.
         }
       }
 

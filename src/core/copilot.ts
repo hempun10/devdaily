@@ -10,6 +10,8 @@ export interface IssueContext {
 }
 
 export class CopilotClient {
+  private copilotTypeCache: 'new' | 'legacy' | null | undefined = undefined;
+
   /**
    * Check if the new GitHub Copilot CLI is installed
    */
@@ -33,17 +35,23 @@ export class CopilotClient {
    * Check which Copilot CLI is available
    */
   private async getCopilotType(): Promise<'new' | 'legacy' | null> {
+    if (this.copilotTypeCache !== undefined) {
+      return this.copilotTypeCache;
+    }
+
     try {
       await execa('copilot', ['--version']);
-      return 'new';
+      this.copilotTypeCache = 'new';
     } catch {
       try {
         await execa('gh', ['copilot', '--version']);
-        return 'legacy';
+        this.copilotTypeCache = 'legacy';
       } catch {
-        return null;
+        this.copilotTypeCache = null;
       }
     }
+
+    return this.copilotTypeCache;
   }
 
   /**
@@ -183,6 +191,18 @@ export class CopilotClient {
     const ticketContext = this.formatTicketContext(tickets);
     const contextInfo = this.formatWorkContext(workContext);
 
+    // Extract ticket IDs from work context to ensure they're mentioned
+    const ticketIds =
+      workContext?.tickets.map((t) => t.id).join(', ') ||
+      (tickets.length > 0 ? tickets.map((t) => t.id).join(', ') : '');
+
+    // Build work areas string
+    const workAreas =
+      workContext?.categories
+        .slice(0, 2)
+        .map((c) => c.name)
+        .join(', ') || '';
+
     const prompt = `
 You are helping a developer write their daily standup update for a team meeting.
 This will be shared with both technical and non-technical team members (managers, PMs, stakeholders).
@@ -196,7 +216,7 @@ Write a friendly, conversational standup update that anyone can understand.
 
 Format:
 Yesterday I worked on:
-• [what you accomplished in plain language]
+• [what you accomplished in plain language]${ticketIds ? ` (include ticket references like ${ticketIds})` : ''}
 • [another accomplishment - focus on the outcome/value, not technical details]
 • [if relevant, mention any collaboration or team impact]
 
@@ -218,6 +238,8 @@ Guidelines:
 - Keep it brief and scannable (2-4 bullets per section)
 - Use the ticket context to explain the business purpose if available
 - Sound human and approachable, not robotic
+${ticketIds ? `- IMPORTANT: Reference these ticket IDs in your bullet points: ${ticketIds}` : ''}
+${workAreas ? `- The work was primarily in: ${workAreas}` : ''}
 `;
 
     return this.suggest(prompt);

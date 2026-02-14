@@ -38,10 +38,11 @@ export class GitAnalyzer {
     }
 
     // Use unique delimiters for field and record separation
+    // Body (%b) is last to handle multi-line content
     const FIELD_SEP = '<<<DD_FIELD>>>';
     const RECORD_SEP = '<<<DD_RECORD>>>';
     args.push(
-      `--format=${RECORD_SEP}%H${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%ae${FIELD_SEP}%ai`
+      `--format=${RECORD_SEP}%H${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%ae${FIELD_SEP}%ai${FIELD_SEP}%b`
     );
 
     const result = await this.git.raw(args);
@@ -58,14 +59,16 @@ export class GitAnalyzer {
         if (parts.length < 5) {
           return null;
         }
-        const [hash, message, author, _authorEmail, date] = parts;
+        const [hash, message, author, _authorEmail, date, ...bodyParts] = parts;
+        // Body might contain our delimiter if it has special content
+        const body = bodyParts.join(FIELD_SEP).trim();
         return {
           hash: hash || '',
           message: message || '',
           author: author || '',
           date: new Date(date || Date.now()),
-          body: '', // Skip body to avoid newline issues
-        };
+          body: body || undefined,
+        } as Commit;
       })
       .filter((c): c is Commit => c !== null && !!c.message);
 
@@ -90,6 +93,34 @@ export class GitAnalyzer {
   async getChangedFiles(base: string = 'main', head: string = 'HEAD'): Promise<string[]> {
     const diff = await this.git.diff([`${base}...${head}`, '--name-only']);
     return diff.split('\n').filter(Boolean);
+  }
+
+  /**
+   * Get files changed in recent commits (fallback when diff fails)
+   */
+  async getFilesFromCommits(options: CommitOptions = {}): Promise<string[]> {
+    const args: string[] = ['log', '--name-only', '--pretty=format:'];
+
+    if (options.since) {
+      args.push(`--since=${options.since.toISOString()}`);
+    }
+
+    if (options.until) {
+      args.push(`--until=${options.until.toISOString()}`);
+    }
+
+    if (options.author) {
+      args.push(`--author=${options.author}`);
+    }
+
+    const result = await this.git.raw(args);
+    const files = result
+      .split('\n')
+      .filter(Boolean)
+      .filter((f) => !f.startsWith('commit '));
+
+    // Deduplicate
+    return [...new Set(files)];
   }
 
   async getCurrentUser(): Promise<{ name: string; email: string }> {

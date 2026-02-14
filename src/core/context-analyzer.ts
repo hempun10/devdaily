@@ -277,10 +277,26 @@ export class ContextAnalyzer {
     });
 
     let filesChanged: string[] = [];
+
+    // Try git diff first (works best on feature branches)
     try {
       filesChanged = await this.git.getChangedFiles(options.base || 'main', 'HEAD');
     } catch {
-      // May fail if no base branch exists
+      // Expected: fails when base branch doesn't exist locally, or when on main branch
+      // with no upstream. Falls through to commit-based file detection below.
+    }
+
+    // Fallback: get files from commit history if diff returned nothing
+    if (filesChanged.length === 0 && commits.length > 0) {
+      try {
+        filesChanged = await this.git.getFilesFromCommits({
+          since: options.since,
+          until: options.until,
+        });
+      } catch {
+        // Expected: may fail in shallow clones or repos with no commit history.
+        // Proceed with empty filesChanged — categorization will just be skipped.
+      }
     }
 
     // Extract tickets from branch and commits

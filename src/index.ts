@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { createRequire } from 'module';
 import { standupCommand } from './commands/standup.js';
 import { prCommand } from './commands/pr.js';
 import { weekCommand } from './commands/week.js';
@@ -12,13 +13,16 @@ import UI from './ui/renderer.js';
 
 const { colors } = UI;
 
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json');
+
 const program = new Command();
 
 // Configure program
 program
   .name('devdaily')
   .description('Your AI-powered developer memory')
-  .version('1.0.0', '-v, --version', 'Show version number')
+  .version(pkg.version, '-v, --version', 'Show version number')
   .configureHelp({
     sortSubcommands: true,
     sortOptions: true,
