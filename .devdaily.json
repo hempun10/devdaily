@@ -1,0 +1,91 @@
+{
+  "$schema": "https://raw.githubusercontent.com/hempun10/devdaily/main/schemas/devdaily.schema.json",
+  "version": 1,
+  "theme": {
+    "primary": "blue",
+    "success": "green",
+    "warning": "yellow",
+    "error": "red",
+    "accent": "cyan",
+    "muted": "gray"
+  },
+  "ascii": true,
+  "animations": true,
+  "compactMode": false,
+  "aliases": {
+    "standup": ["s", "su", "daily"],
+    "pr": ["p", "pull"],
+    "week": ["w", "weekly"],
+    "dash": ["d", "dashboard"]
+  },
+  "output": {
+    "format": "markdown",
+    "copyToClipboard": true,
+    "showStats": true,
+    "verbose": false
+  },
+  "git": {
+    "defaultBranch": "main",
+    "excludeAuthors": [],
+    "excludePatterns": ["merge commit", "Merge branch"]
+  },
+  "projects": [],
+  "shortcuts": {
+    "quit": "q",
+    "help": "?",
+    "refresh": "r",
+    "copy": "c",
+    "create": "enter",
+    "back": "esc",
+    "nextProject": "tab",
+    "prevProject": "shift+tab"
+  },
+  "projectManagement": {
+    "tool": "github",
+    "jira": {
+      "useApiToken": true
+    },
+    "linear": {
+      "useApi": true
+    },
+    "notion": {
+      "useApi": true
+    }
+  },
+  "notifications": {
+    "slack": {
+      "enabled": false
+    },
+    "discord": {
+      "enabled": false
+    },
+    "standupTimezone": "America/New_York"
+  },
+  "copilot": {
+    "timeout": 30000,
+    "retries": 2
+  },
+  "standup": {
+    "defaultDays": 1,
+    "includeWIP": false,
+    "sections": ["completed", "in-progress", "blockers"],
+    "groupBy": "none",
+    "includeTicketLinks": true,
+    "scheduleDays": ["monday", "tuesday", "wednesday", "thursday", "friday"]
+  },
+  "pr": {
+    "defaultBase": "main",
+    "autoLabels": true,
+    "defaultLabels": [],
+    "defaultReviewers": [],
+    "defaultAssignees": [],
+    "titleFormat": "conventional",
+    "includeTicketInTitle": true,
+    "includeDiff": true,
+    "maxDiffLines": 200
+  },
+  "week": {
+    "startDay": "monday",
+    "includeWeekends": false
+  }
+}

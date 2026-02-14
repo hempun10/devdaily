@@ -9,6 +9,7 @@ import {
   type Ticket,
 } from '../core/project-management.js';
 import { loadPRTemplate, fillTemplate, type PRTemplate } from '../core/pr-template.js';
+import { loadPRPrompt, type PRPromptConfig } from '../core/pr-prompt.js';
 import {
   getRepoMetadata,
   getRepoInfo,
@@ -22,6 +23,7 @@ import { ASCII } from '../ui/ascii.js';
 import { copyToClipboard } from '../utils/helpers.js';
 import { generatePRTitle, categorizePRType } from '../utils/commitlint.js';
 import { getConfig } from '../config/index.js';
+import { sideEffectSnapshot } from '../core/auto-snapshot.js';
 
 const { colors } = UI;
 
@@ -177,7 +179,7 @@ async function selectUsers(
 
 export const prCommand = new Command('pr')
   .description('Generate PR description from current branch')
-  .option('-b, --base <branch>', 'Base branch to compare against', 'main')
+  .option('-b, --base <branch>', 'Base branch to compare against')
   .option('-c, --create', 'Create PR on GitHub')
   .option('-d, --draft', 'Create as draft PR')
   .option('-p, --preview', 'Show preview before creating')
@@ -185,11 +187,15 @@ export const prCommand = new Command('pr')
   .option('--no-tickets', 'Skip fetching ticket/issue context')
   .option('--no-copy', 'Do not copy to clipboard')
   .option('--no-template', 'Ignore PR template, use default format')
+  .option('--no-diff', 'Skip including diff context in AI prompt')
+  .option('--no-prompt-file', 'Ignore custom PR prompt file')
   .option('-i, --interactive', 'Interactive mode for labels, reviewers, assignees')
+  .option('--no-journal', 'Skip auto-saving a snapshot to the journal')
+  .option('--debug', 'Show debug information (prompts, raw AI input)')
   .action(async (options) => {
     const config = getConfig();
     const git = new GitAnalyzer();
-    const copilot = new CopilotClient();
+    const copilot = new CopilotClient({ debug: options.debug });
     const pmClient = getProjectManagementClient();
 
     // Check if in git repo
@@ -205,7 +211,22 @@ export const prCommand = new Command('pr')
       process.exit(1);
     }
 
-    const base = options.base || config.pr.defaultBase;
+    // Resolve the base branch: CLI flag → config → auto-detect → fallback
+    let base: string;
+    if (options.base) {
+      base = options.base;
+    } else if (config.pr.defaultBase && config.pr.defaultBase !== 'main') {
+      // User has explicitly configured a non-default base
+      base = config.pr.defaultBase;
+    } else {
+      // Auto-detect from the repo
+      try {
+        base = await git.getDefaultBranch();
+      } catch {
+        base = config.pr.defaultBase || 'main';
+      }
+    }
+
     const spinner = UI.spinner('Analyzing branch...');
     spinner.start();
 
@@ -278,6 +299,36 @@ export const prCommand = new Command('pr')
         }
       }
 
+      // Load custom PR prompt file (team guidelines)
+      spinner.text = 'Checking for PR description guidelines...';
+      let promptConfig: PRPromptConfig | null = null;
+
+      if (options.promptFile !== false) {
+        promptConfig = await loadPRPrompt(repoRoot);
+        if (promptConfig) {
+          spinner.text = `Found PR prompt: ${promptConfig.path}`;
+        }
+      }
+
+      // Get diff context for richer AI descriptions
+      spinner.text = 'Gathering diff context...';
+      let diffStat = '';
+      let diffContent = '';
+
+      const shouldIncludeDiff = options.diff !== false && config.pr.includeDiff !== false;
+      if (shouldIncludeDiff) {
+        try {
+          const diffData = await git.getDiffForAI(base, 'HEAD', config.pr.maxDiffLines || 200);
+          diffStat = diffData.stat;
+          diffContent = diffData.diff;
+          if (diffData.truncated) {
+            spinner.text = 'Diff truncated to fit AI context window...';
+          }
+        } catch {
+          // Diff failed — continue without it (filenames still available)
+        }
+      }
+
       // Generate PR content
       spinner.text = 'Generating PR description with Copilot CLI...';
 
@@ -294,6 +345,10 @@ export const prCommand = new Command('pr')
           issues: Array.from(ticketIds),
           ticketDetails: tickets,
           templateSections: template.sections.map((s) => s.name),
+          diffStat,
+          diff: diffContent,
+          templateContent: template.raw,
+          promptConfig,
         });
 
         prTitle = content.title;
@@ -324,6 +379,10 @@ export const prCommand = new Command('pr')
           files,
           issues: Array.from(ticketIds),
           ticketDetails: tickets,
+          diffStat,
+          diff: diffContent,
+          templateContent: template?.raw,
+          promptConfig,
         });
       }
 
@@ -342,12 +401,23 @@ export const prCommand = new Command('pr')
         metaSpinner.stop();
       }
 
-      // Show template info
+      // Show info about what was used
       console.log('');
+      console.log(UI.info(`Base branch: ${colors.accent(base)}`));
       if (usingTemplate && template) {
-        console.log(UI.info(`Using PR template: ${colors.accent(template.path)}`));
+        console.log(UI.info(`PR template: ${colors.accent(template.path)}`));
       } else {
         console.log(UI.info('Using default PR format (no template found)'));
+      }
+      if (promptConfig) {
+        console.log(UI.info(`PR guidelines: ${colors.accent(promptConfig.path)}`));
+      }
+      if (shouldIncludeDiff && diffStat) {
+        console.log(
+          UI.info(
+            `Diff context: ${colors.accent('included')} (${diffContent.split('\n').length} lines)`
+          )
+        );
       }
 
       // Interactive selection
@@ -517,6 +587,16 @@ export const prCommand = new Command('pr')
           selectedReviewers,
           createDraft
         );
+      }
+      // ── Auto-snapshot side-effect ──────────────────────────────────────
+      if (options.journal !== false) {
+        const isDebug = options.debug || process.env.DEVD_DEBUG === '1';
+        await sideEffectSnapshot({
+          source: 'pr',
+          note: `PR generated for branch ${currentBranch} → ${base}`,
+          tags: prTitle ? [`pr:${prTitle.slice(0, 50)}`] : [],
+          debug: isDebug,
+        });
       }
     } catch (error) {
       spinner.stop();

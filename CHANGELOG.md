@@ -5,6 +5,84 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-07-13
+
+### Added
+
+- **Persistent Work Journal** — Local work memory stored in `~/.config/devdaily/journal/` that tracks your work across sessions, days, and projects.
+  - `src/core/work-journal.ts` — Full storage layer with index, search, merge, cross-project aggregation, pruning, and stats.
+  - `src/core/snapshot-builder.ts` — Captures rich repo state (branches, commits, PRs, tickets, diffs, categories) into `WorkSnapshot` objects.
+
+- **`devdaily snapshot`** (`snap`, `save`) — Manually capture a work snapshot with notes and tags.
+  - `--light` mode for fast captures (no PRs/tickets).
+  - `--list [days]` to browse recent snapshots.
+  - `--stats` to see journal storage usage.
+  - `--prune <days>` to clean up old entries.
+
+- **`devdaily context`** (`ctx`, `resume`) — Recover what you were working on after a context switch.
+  - Date range filtering (`--from`, `--to`, `--date`, `--days`).
+  - `--all-projects` for cross-project context.
+  - `--ai` for AI-powered "where did I leave off?" summaries.
+  - `--branches` for detailed active branch status.
+
+- **`devdaily recall`** (`search`, `find`) — Search your work history by keyword, file, tag, or date range.
+  - Fuzzy matching across commit messages, branch names, notes, and tags.
+  - `--file <path>` to find when a specific file was changed.
+  - `--ai` for AI-powered search result summaries.
+  - `--json` output for scripting.
+
+- **Automatic Side-Effect Snapshots** — Zero-friction snapshot capture.
+  - `src/core/auto-snapshot.ts` — Silent, non-blocking snapshot module.
+  - `sideEffectSnapshot()` runs at the end of `standup`, `pr`, and `week` commands.
+  - `fireAndForgetSnapshot()` for fully async background captures.
+  - Tagged with source (`auto:standup`, `auto:pr`, `auto:week`, etc.).
+  - Respects `journal.autoSnapshot` config flag.
+  - `--no-journal` flag on `standup` and `pr`, `--no-auto-snapshot` on `week` to skip.
+
+- **Git Hooks for Auto-Capture** — Opt-in `post-commit` and `post-checkout` hooks.
+  - `devdaily init --git-hooks` — Interactive hook installer.
+  - `devdaily init --remove-hooks` — Clean removal of devdaily hooks.
+  - POSIX-compatible (`#!/bin/sh`), background-executed, safe with existing hooks.
+  - Appends to existing hooks rather than overwriting.
+  - `generatePostCommitHook()` and `generatePostCheckoutHook()` in `auto-snapshot.ts`.
+
+- **`journal` Config Section** — New configuration block for snapshot automation.
+  - `autoSnapshot` (default: `true`) — Enable/disable side-effect snapshots globally.
+  - `gitHooks` (default: `false`) — Track whether git hooks are installed.
+  - `hooks.postCommit` / `hooks.postCheckout` — Per-hook enable/disable.
+  - `quiet` (default: `true`) — Suppress snapshot side-effect messages.
+
+- **Enhanced `devdaily week`** — Major improvements to weekly summaries.
+  - `--from` / `--to` for custom date ranges.
+  - `--weeks-ago <n>` for relative week selection.
+  - `--all-projects` for cross-project summaries from journal data.
+  - `--save` to persist the AI summary to the journal.
+  - `--json` for machine-readable stats output.
+  - Journal enrichment — weekly summaries incorporate snapshot history.
+
+- **Comprehensive Test Suite** — 654 tests across 12 test files.
+  - `tests/auto-snapshot.test.ts` — 74 tests covering side-effect snapshots, hook generation, hook install/remove, config integration, edge cases, and round-trip cycles.
+  - `tests/work-journal.test.ts` — 123 tests covering persistent storage, search, cross-project aggregation, merge logic, pruning, and stats.
+
+- **Production-Grade README** — Complete rewrite with full command reference, config documentation, architecture overview, testing guide, FAQ, and troubleshooting.
+
+### Changed
+
+- **`devdaily init`** — Added `📸 Git hooks for automatic snapshots` as an interactive setup option, `--git-hooks` and `--remove-hooks` flags, and `dd context` in quick-start hints.
+- **`devdaily standup`** — Now auto-saves a light snapshot to the journal after generating (disable with `--no-journal`).
+- **`devdaily pr`** — Now auto-saves a light snapshot to the journal after generating (disable with `--no-journal`).
+- **`devdaily week`** — Now auto-saves a light snapshot to the journal after generating (disable with `--no-auto-snapshot`).
+- **Config schema** — Added `JournalSchema` with `autoSnapshot`, `gitHooks`, `hooks`, `autoPromptDays`, and `quiet` fields. Exported `Journal` type.
+- **README** — Rewritten from scratch to production-grade standard. Updated project structure, feature table, command reference, config examples, roadmap (marked completed items), and added sections for auto-snapshots, privacy, and testing.
+
+### Technical
+
+- New modules: `src/core/auto-snapshot.ts`, `src/core/snapshot-builder.ts`, `src/core/work-journal.ts`.
+- New commands: `src/commands/snapshot.ts`, `src/commands/context.ts`, `src/commands/recall.ts`.
+- New test file: `tests/auto-snapshot.test.ts` (74 tests).
+- Total test count: 580 → 654 (12 test files).
+- Build output: 348 KB (ESM), clean TypeScript compilation with zero errors.
+
 ## [0.4.1] - 2026-02-14
 
 ### Fixed
@@ -112,6 +190,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for custom date ranges
 - No emoji output (professional terminal style)
 
+[0.5.0]: https://github.com/hempun10/devdaily/releases/tag/v0.5.0
 [0.4.1]: https://github.com/hempun10/devdaily/releases/tag/v0.4.1
 [0.3.0]: https://github.com/hempun10/devdaily/releases/tag/v0.3.0
 [0.2.0]: https://github.com/hempun10/devdaily/releases/tag/v0.2.0

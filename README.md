@@ -4,659 +4,876 @@
 
 **Your AI-powered developer memory**
 
-Auto-generate standup notes, PR descriptions, and weekly summaries from your git history.
+Auto-generate standup notes, PR descriptions, weekly summaries — and never lose context when switching tasks.
 
 [![NPM Version](https://img.shields.io/npm/v/devdaily-ai)](https://www.npmjs.com/package/devdaily-ai)
 [![Node Version](https://img.shields.io/node/v/devdaily-ai)](https://nodejs.org)
+[![Tests](https://img.shields.io/badge/tests-654%20passing-brightgreen)](#testing)
 [![License](https://img.shields.io/npm/l/devdaily-ai)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/hempun10/devdaily)](https://github.com/hempun10/devdaily)
 
-[Installation](#installation) • [Quick Start](#quick-start) • [Commands](#commands) • [Examples](#examples) • [Contributing](docs/CONTRIBUTING.md)
+[Installation](#installation) · [Quick Start](#quick-start) · [Commands](#commands) · [Configuration](#configuration) · [Contributing](docs/CONTRIBUTING.md)
 
 </div>
 
 ---
 
-## Why DevDaily AI?
+## Why DevDaily?
 
-As developers, we spend too much time on repetitive tasks:
+Developers lose hours every week to low-value repetitive work:
 
 - ⏱️ Writing standup notes every morning
 - 📝 Crafting PR descriptions from scratch
-- 📊 Summarizing weekly accomplishments
-- 🔍 Remembering what we were working on last week
+- 📊 Compiling weekly accomplishments for managers
+- 🧠 Trying to remember what you were doing before a context switch
 
-**DevDaily AI solves this.** It analyzes your git history and uses GitHub Copilot CLI to generate professional summaries in seconds.
+**DevDaily fixes all of this.** It analyzes your git history, tracks your work automatically, and uses GitHub Copilot CLI to generate professional summaries — in seconds.
+
+### What makes it different
+
+Most dev tools generate text from commits. DevDaily goes further: it builds a **persistent local memory** of your work. Every standup you run, every PR you generate, every branch you switch — DevDaily silently records a snapshot. That means:
+
+- `devdaily context` can tell you exactly where you left off, even days later
+- `devdaily recall auth` finds every time you touched authentication code
+- `devdaily week` produces accurate summaries even if you forgot to commit on some days
+- Cross-project summaries work across all your repositories
+
+No cloud. No telemetry. Everything stays in `~/.config/devdaily/journal/`.
+
+---
 
 ## Features
 
-| Feature                      | Description                                                          |
-| ---------------------------- | -------------------------------------------------------------------- |
-| **🚀 Standup Generator**     | Generate daily standup notes from recent commits in 30 seconds       |
-| **📄 Smart PR Descriptions** | Auto-generate PR titles and descriptions with commitlint integration |
-| **📅 Weekly Summaries**      | Track your impact and accomplishments over time                      |
-| **🎫 GitHub Issues Context** | Fetches linked issues for richer, context-aware AI summaries         |
-| **🖥️ Interactive Dashboard** | Beautiful TUI with keyboard navigation and real-time stats           |
-| **🩺 Doctor Command**        | Diagnose and auto-fix setup issues with `devdaily doctor --fix`      |
-| **⚙️ Customizable Config**   | Per-project and global configuration with themes                     |
-| **⌨️ Shell Integration**     | `dd` alias, tab completions for bash/zsh/fish                        |
-| **🔄 Interactive Workflow**  | Preview, edit, and create PRs with interactive menus                 |
-| **📋 Auto-Copy**             | All outputs copied to clipboard automatically                        |
-| **🎨 Professional Output**   | Clean terminal UI with ASCII art and beautiful formatting            |
-| **🔧 Multi-Format**          | Export to Markdown, Slack, JSON, or plain text                       |
+| Feature                        | Description                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------ |
+| **🚀 Standup Generator**       | Generate daily standup notes from commits, PRs, and tickets in 30 seconds            |
+| **📄 Smart PR Descriptions**   | Auto-generate titles and descriptions with template support and commitlint           |
+| **📅 Weekly Summaries**        | Cross-project weekly summaries with date ranges, journal enrichment, and JSON export |
+| **📸 Work Snapshots**          | Capture rich snapshots of your repo state — branches, commits, PRs, tickets, diffs   |
+| **🧠 Persistent Memory**       | Local work journal that remembers everything across sessions and days                |
+| **🔄 Context Recovery**        | `devdaily context` — fight context-switching amnesia, resume where you left off      |
+| **🔍 Work Search**             | `devdaily recall` — search your history by keyword, file, tag, or date range         |
+| **⚡ Auto-Snapshots**          | Snapshots happen invisibly when you run commands or commit code — zero friction      |
+| **🪝 Git Hooks**               | Opt-in `post-commit` and `post-checkout` hooks for automatic capture                 |
+| **🎫 PM Integration**          | GitHub Issues, Jira, Linear, and Notion support for ticket context                   |
+| **🖥️ Interactive Dashboard**   | Beautiful TUI with keyboard navigation and real-time stats                           |
+| **🩺 Doctor Command**          | Diagnose and auto-fix setup issues                                                   |
+| **🔔 Notifications**           | Send standups to Slack or Discord via webhooks                                       |
+| **🔀 Interactive PR Workflow** | Preview, edit, select labels/reviewers/assignees, then create PRs                    |
+| **📋 Auto-Copy**               | All outputs copied to clipboard automatically                                        |
+| **🎨 Professional Output**     | Clean terminal UI with theming, ASCII art, and multi-format export                   |
+
+---
 
 ## Installation
 
-**Prerequisites:**
+### Prerequisites
 
-- Node.js >= 18.0.0
-- Git repository
-- GitHub CLI with Copilot extension
+- **Node.js** >= 18.0.0
+- **Git** (any recent version)
+- **GitHub CLI** with Copilot extension (for AI features)
 
-### Quick Install (Recommended)
+### Quick Install
 
 ```bash
 # Install DevDaily
 npm install -g devdaily-ai
 
-# Run doctor to check/fix prerequisites
+# Check prerequisites and auto-fix issues
 devdaily doctor --fix
 
-# Set up shell alias and completions
+# Interactive setup — aliases, completions, PM integration, git hooks
 devdaily init
 ```
 
-That's it! Now you can use `dd` as a shortcut anywhere.
-
-### Manual Setup
-
-If you prefer to set up manually:
-
-#### 1. Install GitHub CLI (if not already installed)
+After setup, use `dd` as a shortcut anywhere:
 
 ```bash
-# macOS
-brew install gh
-
-# Windows
-winget install --id GitHub.cli
-
-# Linux
-sudo apt install gh  # Debian/Ubuntu
-sudo dnf install gh  # Fedora/RHEL
+dd standup    # Generate standup
+dd pr         # Generate PR description
+dd week       # Weekly summary
+dd context    # Resume where you left off
 ```
 
-Or visit [cli.github.com](https://cli.github.com) for other installation methods.
+### GitHub Copilot CLI Setup
 
-#### 2. Install GitHub Copilot CLI Extension
+DevDaily uses GitHub Copilot CLI for AI-powered text generation. If you don't have it:
 
 ```bash
-gh extension install github/gh-copilot
+# Install GitHub CLI
+brew install gh          # macOS
+# winget install GitHub.cli   # Windows
+# sudo apt install gh         # Debian/Ubuntu
+
+# Authenticate
 gh auth login
+
+# Install Copilot extension
+gh extension install github/gh-copilot
 ```
 
-#### 3. Install DevDaily AI
+Run `devdaily doctor` at any time to verify your setup.
 
-```bash
-npm install -g devdaily-ai
-```
-
-### Verify Installation
-
-```bash
-# Check everything is set up correctly
-devdaily doctor
-
-# Or manually check version
-devdaily --version
-devdaily --help
-```
+---
 
 ## Quick Start
 
-Navigate to any git repository and run:
-
 ```bash
-# First time setup (sets up 'dd' alias and shell completions)
-devdaily init
+# Navigate to any git repository
+cd your-project
 
-# Generate standup notes
-devdaily standup   # or: dd s
+# Generate today's standup
+devdaily standup
 
-# Generate PR description
-devdaily pr        # or: dd p
+# Generate a PR description for your current branch
+devdaily pr
 
-# Get weekly summary
-devdaily week      # or: dd w
+# Get this week's summary
+devdaily week
 
-# Open interactive dashboard
-devdaily dash      # or: dd d
+# Recover context after a break
+devdaily context
+
+# Search your work history
+devdaily recall "authentication"
+
+# Take a manual snapshot with a note
+devdaily snapshot --note "Finished auth refactor"
 ```
 
-All outputs are automatically copied to your clipboard! 📋
+---
 
 ## Commands
 
+### Core Commands
+
+| Command             | Aliases            | Description                                                  |
+| ------------------- | ------------------ | ------------------------------------------------------------ |
+| `devdaily standup`  | `s`, `su`, `daily` | Generate standup notes from recent commits, PRs, and tickets |
+| `devdaily pr`       | `p`, `pull`        | Generate PR description from current branch                  |
+| `devdaily week`     | `w`, `weekly`      | Generate weekly work summary                                 |
+| `devdaily context`  | `ctx`, `resume`    | Recover what you were working on                             |
+| `devdaily recall`   | `search`, `find`   | Search your work history                                     |
+| `devdaily snapshot` | `snap`, `save`     | Manually capture a work snapshot                             |
+
+### Setup & Utility
+
+| Command            | Aliases          | Description                         |
+| ------------------ | ---------------- | ----------------------------------- |
+| `devdaily init`    | —                | Interactive setup wizard            |
+| `devdaily config`  | `cfg`            | Manage configuration                |
+| `devdaily doctor`  | `check`, `setup` | Diagnose and fix prerequisites      |
+| `devdaily connect` | `pm`, `link`     | Test project management connections |
+| `devdaily dash`    | `d`, `dashboard` | Interactive TUI dashboard           |
+
+---
+
 ### `devdaily standup`
 
-Generate daily standup notes from your recent commits.
+Generate daily standup notes from your recent commits, PRs, and tickets.
 
 ```bash
-# Yesterday's work (default)
-devdaily standup
-
-# Last 3 days
-devdaily standup --days=3
-
-# Last week
-devdaily standup --days=7
-
-# Output in Slack format
-devdaily standup --format=slack
-
-# Plain text format
-devdaily standup --format=plain
-
-# Don't copy to clipboard
-devdaily standup --no-copy
+devdaily standup                  # Yesterday's work (default)
+devdaily standup --days=3         # Last 3 days
+devdaily standup --format=slack   # Slack-formatted output
+devdaily standup --context        # Show detailed work analysis
+devdaily standup --raw-context    # Output raw context (no AI)
+devdaily standup --send           # Send to Slack/Discord
+devdaily standup --no-journal     # Skip auto-snapshot side-effect
 ```
 
-**Options:**
+| Option                 | Description                                         |
+| ---------------------- | --------------------------------------------------- |
+| `-d, --days <n>`       | Number of days to look back (default: 1)            |
+| `-f, --format <type>`  | Output format: `markdown`, `slack`, `plain`, `json` |
+| `-a, --author <email>` | Filter by author email                              |
+| `-t, --ticket <id...>` | Include specific ticket IDs for context             |
+| `--tone <type>`        | Output tone: `engineering`, `mixed`, `business`     |
+| `--context`            | Show detailed work context analysis                 |
+| `--raw-context`        | Output raw context block (no AI generation)         |
+| `--preview`            | Show context and confirm before generating          |
+| `--send`               | Send to all configured notification channels        |
+| `--slack`              | Send to Slack                                       |
+| `--discord`            | Send to Discord                                     |
+| `--no-tickets`         | Skip fetching ticket context                        |
+| `--no-prs`             | Skip fetching PR context                            |
+| `--no-copy`            | Don't copy to clipboard                             |
+| `--no-journal`         | Skip auto-saving a snapshot                         |
+| `--debug`              | Show full prompt and context                        |
 
-- `--days, -d <number>` - Number of days to analyze (default: 1)
-- `--format, -f <format>` - Output format: markdown, slack, plain (default: markdown)
-- `--no-copy` - Don't copy to clipboard
+---
 
 ### `devdaily pr`
 
-Generate comprehensive PR descriptions with smart title generation.
+Generate comprehensive PR descriptions with smart title generation, template support, and interactive workflows.
 
 ```bash
-# Generate PR description (interactive)
-devdaily pr
-
-# Create PR immediately
-devdaily pr --create
-
-# Create draft PR
-devdaily pr --draft
-
-# Compare to develop branch
-devdaily pr --base=develop
-
-# Don't copy to clipboard
-devdaily pr --no-copy
+devdaily pr                       # Generate and preview
+devdaily pr --create              # Create PR on GitHub immediately
+devdaily pr --draft               # Create as draft PR
+devdaily pr --base=develop        # Compare against develop branch
+devdaily pr --interactive         # Select labels, reviewers, assignees
+devdaily pr --ticket PROJ-123     # Include specific ticket context
+devdaily pr --no-journal          # Skip auto-snapshot
 ```
 
-**Options:**
+| Option                | Description                                       |
+| --------------------- | ------------------------------------------------- |
+| `-b, --base <branch>` | Base branch to compare against                    |
+| `-c, --create`        | Create PR on GitHub                               |
+| `-d, --draft`         | Create as draft PR                                |
+| `-t, --ticket <id>`   | Include specific ticket/issue for context         |
+| `-i, --interactive`   | Interactive mode for labels, reviewers, assignees |
+| `-p, --preview`       | Show preview before creating                      |
+| `--no-tickets`        | Skip fetching ticket context                      |
+| `--no-template`       | Ignore PR template                                |
+| `--no-diff`           | Skip diff context in AI prompt                    |
+| `--no-prompt-file`    | Ignore `.devdaily-pr-prompt.md`                   |
+| `--no-copy`           | Don't copy to clipboard                           |
+| `--no-journal`        | Skip auto-saving a snapshot                       |
+| `--debug`             | Show prompts and raw AI input                     |
 
-- `--base, -b <branch>` - Base branch to compare against (default: main)
-- `--create, -c` - Create PR on GitHub immediately
-- `--draft, -d` - Create PR as draft
-- `--no-copy` - Don't copy to clipboard
+**Smart features:**
 
-**Interactive Menu:**
-When you run `devdaily pr` without flags, you get an interactive menu:
+- Auto-detects `.github/PULL_REQUEST_TEMPLATE.md` and fills sections
+- Generates conventional commit titles (`feat:`, `fix:`, etc.)
+- Extracts ticket/issue numbers from branch names and commits
+- Supports custom prompt files (`.devdaily-pr-prompt.md`) for team conventions
 
-- 👁️ Preview in terminal
-- 📋 Copy to clipboard
-- 🚀 Create PR on GitHub
-- 📝 Create draft PR
-- ❌ Cancel
-
-**Smart Features:**
-
-- Automatically generates PR title from conventional commits
-- Extracts issue numbers (e.g., "Closes #123")
-- Categorizes PR type (feature, bugfix, breaking change)
-- Parses commitlint messages for better titles
+---
 
 ### `devdaily week`
 
-Generate weekly summary of your accomplishments.
+Generate weekly summaries with cross-project support and journal enrichment.
 
 ```bash
-# Current week (default)
-devdaily week
-
-# Last week
-devdaily week --last
-
-# Custom start date
-devdaily week --start="2026-02-01"
-
-# Don't copy to clipboard
-devdaily week --no-copy
+devdaily week                     # Current week
+devdaily week --last              # Last week
+devdaily week --from 2025-01-06 --to 2025-01-10  # Custom range
+devdaily week --weeks-ago 2       # Two weeks ago
+devdaily week --all-projects      # Cross-project summary from journal
+devdaily week --json              # Output stats as JSON
+devdaily week --save              # Save summary to journal
 ```
 
-**Options:**
+| Option                | Description                             |
+| --------------------- | --------------------------------------- |
+| `-l, --last`          | Show last week                          |
+| `-s, --start <date>`  | Custom start date (YYYY-MM-DD)          |
+| `--from <date>`       | Start date for custom range             |
+| `--to <date>`         | End date for custom range               |
+| `-w, --weeks-ago <n>` | Number of weeks back                    |
+| `--all-projects`      | Cross-project summary from journal data |
+| `-p, --project <id>`  | Filter by project identifier            |
+| `--save`              | Save generated summary to journal       |
+| `--json`              | Output stats as JSON (no AI)            |
+| `--raw-context`       | Output raw context (no AI)              |
+| `--no-tickets`        | Skip ticket fetching                    |
+| `--no-prs`            | Skip PR fetching                        |
+| `--no-journal`        | Skip journal data enrichment            |
+| `--no-auto-snapshot`  | Skip auto-saving a snapshot             |
+| `--no-copy`           | Don't copy to clipboard                 |
+| `--debug`             | Show full prompt                        |
 
-- `--last, -l` - Show last week instead of current week
-- `--start, -s <date>` - Custom start date (YYYY-MM-DD)
-- `--no-copy` - Don't copy to clipboard
+---
 
 ### `devdaily context`
 
-Recover work context from past commits (coming soon).
+Recover what you were working on — fight context-switching amnesia.
 
 ```bash
-devdaily context --days=7
+devdaily context                  # Last 7 days of context
+devdaily context --days=14        # Last 14 days
+devdaily context --date 2025-01-10  # Specific date
+devdaily context --ai             # AI-powered "where did I leave off?" summary
+devdaily context --all-projects   # Context across all tracked projects
+devdaily context --branches       # Detailed active branch status
 ```
 
-### `devdaily dash`
+| Option               | Description                              |
+| -------------------- | ---------------------------------------- |
+| `-d, --days <n>`     | Number of days to look back (default: 7) |
+| `-p, --project <id>` | Filter by project                        |
+| `--all-projects`     | Show context across all tracked projects |
+| `--date <date>`      | Show context for a specific date         |
+| `--from <date>`      | Start date for range                     |
+| `--to <date>`        | End date for range                       |
+| `--ai`               | Generate an AI-powered summary           |
+| `--branches`         | Show detailed active branch status       |
+| `--raw`              | Output raw context data                  |
+| `--no-copy`          | Don't copy to clipboard                  |
+| `--debug`            | Show debug output                        |
 
-Open the interactive dashboard with keyboard navigation.
+---
+
+### `devdaily recall`
+
+Search your work history — "when did I last work on X?"
 
 ```bash
-# Open dashboard
-devdaily dash
-
-# Short alias
-dd d
+devdaily recall "authentication"  # Search by keyword
+devdaily recall --file src/auth.ts  # Find when a file was changed
+devdaily recall --tag feature     # Filter by tag
+devdaily recall "login" --ai      # AI summary of search results
+devdaily recall --from 2025-01-01 --to 2025-01-31  # Date range
+devdaily recall "PROJ-123"        # Search by ticket ID
 ```
 
-**Keyboard Shortcuts:**
+| Option                | Description                      |
+| --------------------- | -------------------------------- |
+| `-p, --project <id>`  | Filter by project                |
+| `--from <date>`       | Start date (YYYY-MM-DD)          |
+| `--to <date>`         | End date (YYYY-MM-DD)            |
+| `-d, --days <n>`      | Search last N days (default: 90) |
+| `-t, --tag <tags...>` | Filter by tags                   |
+| `-f, --file <path>`   | Search for a specific file path  |
+| `-l, --limit <n>`     | Max results (default: 10)        |
+| `--ai`                | AI-powered summary of results    |
+| `--json`              | Output as JSON                   |
+| `--no-copy`           | Don't copy to clipboard          |
+| `--debug`             | Show debug output                |
 
-- `s` - Generate standup
-- `p` - Generate PR description
-- `w` - Generate weekly summary
-- `c` - Open configuration
-- `r` - Refresh data
-- `q` - Quit
+---
+
+### `devdaily snapshot`
+
+Manually capture a snapshot of your current work state.
+
+> **Note:** You rarely need to run this manually. Snapshots are taken automatically when you run `standup`, `pr`, or `week`, and optionally on every commit/checkout via git hooks. Use this command when you want to attach a note, tag, or force a snapshot at a specific moment.
+
+```bash
+devdaily snapshot                 # Take a full snapshot
+devdaily snapshot --light         # Quick snapshot (no PRs/tickets)
+devdaily snapshot --note "Finished auth refactor"
+devdaily snapshot --tag milestone release
+devdaily snapshot --list          # List recent snapshots (7 days)
+devdaily snapshot --list 30       # List last 30 days
+devdaily snapshot --stats         # Show journal storage stats
+devdaily snapshot --prune 90      # Remove entries older than 90 days
+```
+
+| Option                | Description                               |
+| --------------------- | ----------------------------------------- |
+| `-d, --date <date>`   | Snapshot date (YYYY-MM-DD)                |
+| `-p, --project <id>`  | Override project identifier               |
+| `-n, --note <text>`   | Attach a note                             |
+| `-t, --tag <tags...>` | Add custom tags                           |
+| `--light`             | Quick mode — commits and branch info only |
+| `--list [days]`       | List recent snapshots                     |
+| `--stats`             | Show journal storage stats                |
+| `--prune <days>`      | Remove entries older than N days          |
+| `--no-prs`            | Skip PR data                              |
+| `--no-tickets`        | Skip ticket data                          |
+| `--no-branches`       | Skip branch listing                       |
+| `--debug`             | Show debug output                         |
+
+---
 
 ### `devdaily init`
 
-Set up DevDaily with shell aliases and completions.
+Interactive setup wizard for aliases, completions, config, PM integration, and git hooks.
 
 ```bash
-# Interactive setup
-devdaily init
-
-# Global setup (for all projects)
-devdaily init --global
-
-# Only set up alias
-devdaily init --alias
-
-# Only set up completions
-devdaily init --completions
+devdaily init                     # Interactive setup
+devdaily init --global            # Global setup
+devdaily init --git-hooks         # Install auto-snapshot git hooks
+devdaily init --remove-hooks      # Remove devdaily git hooks
+devdaily init --alias             # Only set up shell alias
+devdaily init --completions       # Only set up tab completions
+devdaily init --pm                # Only set up PM integration
+devdaily init --notifications     # Only set up Slack/Discord
 ```
 
-**Sets up:**
+**Git hooks** (opt-in):
 
-- Shell alias: `dd` → `devdaily`
-- Tab completions for bash/zsh/fish
-- Configuration file
+- `post-commit` — Automatically snapshots after each commit
+- `post-checkout` — Automatically snapshots when switching branches
+- Runs in background, never slows down git
+- POSIX-compatible, safe with existing hooks (appends, doesn't overwrite)
+- Remove cleanly with `devdaily init --remove-hooks`
 
-### `devdaily config`
-
-Manage DevDaily configuration.
-
-```bash
-# Interactive config editor
-devdaily config
-
-# Open config in your editor
-devdaily config --edit
-
-# Show current config
-devdaily config --show
-
-# Show config file path
-devdaily config --path
-
-# Reset to defaults
-devdaily config --reset
-```
+---
 
 ### `devdaily doctor`
 
 Check system requirements and diagnose issues.
 
 ```bash
-# Check all prerequisites
-devdaily doctor
-
-# Attempt automatic fixes
-devdaily doctor --fix
-
-# Short alias
-devdaily check
+devdaily doctor                   # Check all prerequisites
+devdaily doctor --fix             # Attempt automatic fixes
 ```
 
-**Checks:**
+**Checks:** Node.js version, Git, GitHub CLI, authentication, Copilot extension.
 
-- ✅ Node.js version (>= 18)
-- ✅ Git installed
-- ✅ GitHub CLI installed
-- ✅ GitHub authentication
-- ✅ Copilot extension installed
+---
 
-**Auto-fix capabilities:**
+### `devdaily config`
 
-- Interactive GitHub authentication
-- Copilot extension installation
-
-## GitHub Issues Integration
-
-DevDaily automatically fetches GitHub issue context to provide **richer, more meaningful summaries**. When your commits reference issues (e.g., `fix #123`), DevDaily:
-
-1. Fetches the issue title and description
-2. Categorizes it (bug, feature, docs, etc.)
-3. Includes the context in AI prompts for better summaries
-
-**Benefits:**
-
-- PR descriptions explain the _why_ (business value), not just the _what_
-- Weekly summaries highlight impact by referencing completed issues
-- Standup notes include context about what you were working on
-
-**Usage:**
+Manage configuration.
 
 ```bash
-# Normal usage (issues fetched automatically)
-devdaily standup
-
-# Skip issue fetching (faster, offline)
-devdaily standup --no-tickets
-devdaily pr --no-tickets
-devdaily week --no-tickets
+devdaily config                   # Interactive editor
+devdaily config --show            # Show current config
+devdaily config --edit            # Open in $EDITOR
+devdaily config --path            # Show config file path
+devdaily config --reset           # Reset to defaults
 ```
+
+---
+
+### `devdaily connect`
+
+Test project management connections.
+
+```bash
+devdaily connect                  # Test current PM integration
+devdaily connect --test           # Run connection test
+```
+
+---
+
+## How Auto-Snapshots Work
+
+DevDaily captures your work state **automatically** at natural moments — you never have to think about it.
+
+### When snapshots happen
+
+| Trigger             | How               | What's captured                               |
+| ------------------- | ----------------- | --------------------------------------------- |
+| `devdaily standup`  | Side-effect       | Light snapshot (commits, branch)              |
+| `devdaily pr`       | Side-effect       | Light snapshot + PR context                   |
+| `devdaily week`     | Side-effect       | Light snapshot                                |
+| `git commit`        | Git hook (opt-in) | Light snapshot                                |
+| `git checkout`      | Git hook (opt-in) | Light snapshot + branch note                  |
+| `devdaily snapshot` | Manual            | Full snapshot (PRs, tickets, branches, diffs) |
+
+### Disabling auto-snapshots
+
+```bash
+# Per-command: skip with a flag
+devdaily standup --no-journal
+devdaily pr --no-journal
+
+# Globally: disable in config
+# .devdaily.json
+{
+  "journal": {
+    "autoSnapshot": false
+  }
+}
+```
+
+### What's stored
+
+Snapshots are saved locally to `~/.config/devdaily/journal/` as JSON files organized by date. Each snapshot records:
+
+- Current branch and active local branches
+- Today's commits with files changed
+- Recent commits for context
+- Open and recently merged PRs
+- Extracted ticket/issue references
+- Work category breakdown (frontend, backend, infra, etc.)
+- Diff stats and top changed files
+- Optional notes and tags
+
+No data is uploaded anywhere. The journal is yours.
+
+---
 
 ## Configuration
 
-DevDaily supports both global and per-project configuration.
+DevDaily supports global and per-project configuration.
 
-### Config File Locations
+### Config file locations
 
-- **Global:** `~/.config/devdaily/config.json`
-- **Local:** `.devdailyrc` in your project root
+| Scope       | Path                                                  |
+| ----------- | ----------------------------------------------------- |
+| **Global**  | `~/.config/devdaily/config.json`                      |
+| **Local**   | `.devdaily.json` in project root                      |
+| **Secrets** | `.devdaily.secrets.json` (auto-added to `.gitignore`) |
 
-### Example Configuration
+Local config overrides global config.
+
+### Example configuration
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/hempun10/devdaily/main/schemas/devdaily.schema.json",
   "version": 1,
+
   "theme": {
     "primary": "cyan",
     "accent": "magenta"
   },
-  "ascii": true,
-  "compactMode": false,
+
   "output": {
     "format": "markdown",
     "copyToClipboard": true,
     "showStats": true
   },
+
+  "git": {
+    "defaultBranch": "main",
+    "excludePatterns": ["merge commit", "Merge branch"]
+  },
+
+  "standup": {
+    "defaultDays": 1,
+    "groupBy": "ticket",
+    "includeTicketLinks": true,
+    "sections": ["completed", "in-progress", "blockers"]
+  },
+
+  "pr": {
+    "defaultBase": "main",
+    "includeDiff": true,
+    "maxDiffLines": 200,
+    "titleFormat": "conventional",
+    "includeTicketInTitle": true,
+    "autoLabels": true
+  },
+
+  "week": {
+    "startDay": "monday",
+    "includeWeekends": false
+  },
+
+  "journal": {
+    "autoSnapshot": true,
+    "gitHooks": false,
+    "hooks": {
+      "postCommit": true,
+      "postCheckout": true
+    },
+    "quiet": true
+  },
+
   "projectManagement": {
     "tool": "github",
     "ticketPrefix": "PROJ"
   },
-  "standup": {
-    "defaultDays": 1
-  },
-  "pr": {
-    "defaultBase": "main"
-  },
-  "week": {
-    "startDay": "monday"
-  }
-}
-```
 
-### Project Management Integration
-
-DevDaily supports multiple project management tools for richer context:
-
-```json
-{
-  "projectManagement": {
-    // Tool: "github" | "jira" | "linear" | "notion" | "none"
-    "tool": "jira",
-
-    // Ticket prefix for extraction from branches/commits
-    "ticketPrefix": "PROJ",
-
-    // Jira settings
-    "jira": {
-      "baseUrl": "https://yourcompany.atlassian.net",
-      "projectKey": "PROJ"
+  "notifications": {
+    "slack": {
+      "enabled": false
     },
-
-    // Linear settings
-    "linear": {
-      "teamKey": "ENG"
-    },
-
-    // Notion settings
-    "notion": {
-      "databaseId": "your-database-id"
+    "discord": {
+      "enabled": false
     }
   }
 }
 ```
 
-**Environment Variables for Authentication:**
+### Project management integration
 
-```bash
-# Jira
-export JIRA_BASE_URL="https://yourcompany.atlassian.net"
-export JIRA_EMAIL="you@company.com"
-export JIRA_API_TOKEN="your-api-token"
+DevDaily supports multiple PM tools for richer context in AI summaries:
 
-# Linear
-export LINEAR_API_KEY="lin_api_xxx"
+| Tool              | Config             | Auth                                            |
+| ----------------- | ------------------ | ----------------------------------------------- |
+| **GitHub Issues** | `"tool": "github"` | GitHub CLI (`gh auth login`)                    |
+| **Jira**          | `"tool": "jira"`   | `JIRA_API_TOKEN`, `JIRA_EMAIL`, `JIRA_BASE_URL` |
+| **Linear**        | `"tool": "linear"` | `LINEAR_API_KEY`                                |
+| **Notion**        | `"tool": "notion"` | `NOTION_API_KEY`, `NOTION_DATABASE_ID`          |
 
-# Notion
-export NOTION_API_KEY="secret_xxx"
-export NOTION_DATABASE_ID="xxx"
-```
+Set up interactively with `devdaily init --pm` or `devdaily connect`.
 
-**Ticket Extraction:**
+**Ticket extraction** — DevDaily automatically finds ticket IDs from:
 
-DevDaily automatically extracts ticket IDs from:
+1. Branch names: `feature/PROJ-123-description`
+2. Commit messages: `fix: resolve issue PROJ-123`
+3. PR titles and bodies
+4. Manual input: `--ticket PROJ-123`
 
-1. **Branch names**: `feature/PROJ-123-description`, `PROJ-123/fix-bug`
-2. **Commit messages**: `fix: resolve issue PROJ-123`
-3. **Manual input**: `devdaily pr --ticket PROJ-123`
+### Custom PR prompt file
 
-## Examples
+Create `.devdaily-pr-prompt.md` in your repo root to customize how AI generates PR descriptions (like `CLAUDE.md` but for PRs). DevDaily searches for this file automatically. Generate a starter with `devdaily init`.
 
-See the [`examples/`](examples/) directory for detailed output samples:
+---
 
-- [Standup Output](examples/standup-output.md)
-- [PR Description Output](examples/pr-output.md)
-- [Weekly Summary Output](examples/week-output.md)
+## Privacy & Security
 
-## How It Works
+- **All data stays local.** The work journal is stored in `~/.config/devdaily/journal/` on your machine.
+- **No telemetry.** DevDaily does not phone home.
+- **AI context is minimal.** Only commit messages, branch names, and diff summaries are sent to GitHub Copilot CLI. Full file contents are never shared.
+- **Secrets are separate.** API tokens are stored in `.devdaily.secrets.json`, which is auto-added to `.gitignore`.
+- **Opt-in features.** Git hooks, notifications, and PM integrations are all opt-in.
 
-1. **Analyzes Git History** - Uses `simple-git` to parse commits, diffs, and file changes
-2. **Extracts Context** - Parses conventional commits, issue numbers, and PR types
-3. **AI Summarization** - Leverages GitHub Copilot CLI to generate human-readable summaries
-4. **Professional Output** - Formats with clean terminal UI (chalk, boxen, ora)
-5. **Auto-Copy** - Copies results to clipboard for immediate use
-
-## Configuration
-
-DevDaily AI works out of the box with sensible defaults. No configuration file needed!
-
-All settings can be controlled via command-line flags.
+---
 
 ## Development
 
-Want to contribute? See our [Contributing Guide](docs/CONTRIBUTING.md).
+### Prerequisites
 
 ```bash
-# Clone the repository
 git clone https://github.com/hempun10/devdaily.git
 cd devdaily
-
-# Install dependencies
 npm install
+```
 
-# Run in development mode
-npm run dev
+### Common tasks
 
-# Run tests
+```bash
+npm run dev          # Run in development mode (tsx watch)
+npm run build        # Production build (tsup)
+npm test             # Run all tests (vitest)
+npm run test:watch   # Tests in watch mode
+npm run test:coverage # Tests with coverage
+npm run typecheck    # TypeScript type checking
+npm run lint         # ESLint
+npm run lint:fix     # ESLint with auto-fix
+npm run format       # Prettier formatting
+npm run format:check # Check formatting
+```
+
+### Project structure
+
+```
+devdaily/
+├── src/
+│   ├── index.ts                  # CLI entry point
+│   ├── commands/                 # CLI command implementations
+│   │   ├── standup.ts            #   Standup generator
+│   │   ├── pr.ts                 #   PR description generator
+│   │   ├── week.ts               #   Weekly summary
+│   │   ├── context.ts            #   Context recovery ("where did I leave off?")
+│   │   ├── recall.ts             #   Work history search
+│   │   ├── snapshot.ts           #   Manual snapshot capture
+│   │   ├── dash.ts               #   Interactive TUI dashboard
+│   │   ├── init.ts               #   Setup wizard
+│   │   ├── config.ts             #   Configuration management
+│   │   ├── doctor.ts             #   Prerequisite checker
+│   │   └── connect.ts            #   PM connection tester
+│   ├── core/                     # Core business logic
+│   │   ├── git-analyzer.ts       #   Git operations (commits, branches, diffs)
+│   │   ├── copilot.ts            #   GitHub Copilot CLI integration
+│   │   ├── context-analyzer.ts   #   Work context extraction & categorization
+│   │   ├── standup-context.ts    #   Rich standup context builder
+│   │   ├── snapshot-builder.ts   #   Repo state capture → WorkSnapshot
+│   │   ├── work-journal.ts       #   Persistent local storage layer
+│   │   ├── auto-snapshot.ts      #   Side-effect snapshots & git hook utilities
+│   │   ├── project-management.ts #   PM tool abstraction (Jira, Linear, Notion, GitHub)
+│   │   ├── pm-errors.ts          #   PM error handling & diagnostics
+│   │   ├── github.ts             #   GitHub API client
+│   │   ├── github-repo.ts        #   GitHub repo metadata & PR creation
+│   │   ├── pr-template.ts        #   PR template detection & parsing
+│   │   ├── pr-prompt.ts          #   Custom PR prompt file support
+│   │   └── notifications.ts      #   Slack/Discord webhook integration
+│   ├── config/                   # Configuration system
+│   │   ├── schema.ts             #   Zod schema (type-safe config)
+│   │   └── index.ts              #   Config manager (global + local + secrets)
+│   ├── ui/                       # Terminal UI system
+│   │   ├── renderer.ts           #   Main UI rendering (boxes, sections, stats)
+│   │   ├── colors.ts             #   Theme-aware color system
+│   │   ├── ascii.ts              #   ASCII art and symbols
+│   │   ├── help.ts               #   Help screen rendering
+│   │   ├── dashboard.ts          #   Interactive TUI dashboard
+│   │   ├── keyboard.ts           #   Keyboard input handling
+│   │   └── index.ts              #   UI re-exports
+│   ├── utils/                    # Shared utilities
+│   │   ├── helpers.ts            #   Date, clipboard, formatting helpers
+│   │   ├── commitlint.ts         #   Conventional commit parsing
+│   │   └── ui.ts                 #   UI utility helpers
+│   └── types/                    # TypeScript type definitions
+│       └── index.ts
+├── tests/                        # Test suite (654 tests)
+│   ├── auto-snapshot.test.ts     #   Auto-snapshot, hooks, side-effects (74 tests)
+│   ├── work-journal.test.ts      #   Work journal & snapshot builder (123 tests)
+│   ├── project-management.test.ts #  PM integrations (130 tests)
+│   ├── pr-creation.test.ts       #   PR creation & workflows (123 tests)
+│   ├── standup-context.test.ts   #   Standup context building (70 tests)
+│   ├── copilot.test.ts           #   Copilot CLI integration (38 tests)
+│   ├── pr-prompt.test.ts         #   PR prompt file handling (26 tests)
+│   ├── pr-template.test.ts       #   PR template parsing (25 tests)
+│   ├── context-analyzer.test.ts  #   Context analysis (22 tests)
+│   ├── git-analyzer.test.ts      #   Git operations (15 tests)
+│   ├── commitlint.test.ts        #   Commit parsing (6 tests)
+│   └── ui.test.ts                #   UI rendering (2 tests)
+├── docs/                         # Documentation
+│   ├── CONTRIBUTING.md
+│   ├── TESTING.md
+│   ├── PUBLISHING.md
+│   ├── PROJECT_SETUP.md
+│   ├── DEV_TOOLING_SETUP.md
+│   ├── QUICK_REFERENCE.md
+│   └── reports/
+├── schemas/                      # JSON schemas
+│   └── devdaily.schema.json      #   Config schema for IDE autocomplete
+├── examples/                     # Example outputs
+│   ├── standup-output.md
+│   ├── pr-output.md
+│   └── week-output.md
+├── scripts/                      # Dev/test scripts
+│   ├── setup-test-repo.sh
+│   ├── setup-test-commits.sh
+│   └── create-linear-issues.py
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml                #   CI — lint, typecheck, test (Node 18/20/22)
+│   │   └── publish.yml           #   NPM publish on GitHub release
+│   └── PULL_REQUEST_TEMPLATE.md
+├── package.json
+├── tsconfig.json
+├── tsup.config.ts                # Build config
+├── vitest.config.ts              # Test config
+├── eslint.config.js              # Lint config
+├── commitlint.config.cjs         # Commit message linting
+├── CHANGELOG.md
+└── LICENSE
+```
+
+### Tech stack
+
+| Layer                   | Technology                    |
+| ----------------------- | ----------------------------- |
+| **Language**            | TypeScript (strict mode)      |
+| **CLI framework**       | Commander.js                  |
+| **Git operations**      | simple-git                    |
+| **AI integration**      | GitHub Copilot CLI via execa  |
+| **Interactive prompts** | Inquirer.js                   |
+| **Terminal UI**         | chalk, picocolors, boxen, ora |
+| **Clipboard**           | clipboardy                    |
+| **Config validation**   | Zod                           |
+| **Testing**             | Vitest                        |
+| **Build**               | tsup (ESM output)             |
+| **Linting**             | ESLint + Prettier             |
+| **Commit linting**      | commitlint + Husky            |
+
+---
+
+## Testing
+
+DevDaily has a comprehensive test suite with **654 tests across 12 test files**.
+
+```bash
+# Run all tests
 npm test
 
-# Run tests in watch mode
-npm test -- --watch
+# Run specific test file
+npx vitest run tests/auto-snapshot.test.ts
 
-# Type checking
-npm run typecheck
+# Watch mode
+npm run test:watch
 
-# Lint code
-npm run lint
-npm run lint:fix
-
-# Format code
-npm run format
-
-# Build for production
-npm run build
+# With coverage
+npm run test:coverage
 ```
 
-### Project Structure
+### Test coverage by module
 
-```
-devdaily-ai/
-├── src/
-│   ├── commands/         # CLI command implementations
-│   │   ├── standup.ts    # Standup generator
-│   │   ├── pr.ts         # PR description generator
-│   │   ├── week.ts       # Weekly summary
-│   │   ├── dash.ts       # Interactive dashboard
-│   │   ├── init.ts       # Shell setup (aliases, completions)
-│   │   ├── config.ts     # Configuration management
-│   │   └── context.ts    # Context recovery (coming soon)
-│   ├── core/             # Core business logic
-│   │   ├── git-analyzer.ts    # Git operations
-│   │   └── copilot.ts         # Copilot CLI integration
-│   ├── ui/               # Terminal UI system
-│   │   ├── renderer.ts   # Main UI rendering functions
-│   │   ├── colors.ts     # Theme-aware color system
-│   │   ├── ascii.ts      # ASCII art and symbols
-│   │   ├── help.ts       # Beautiful help screens
-│   │   ├── dashboard.ts  # Interactive TUI dashboard
-│   │   └── keyboard.ts   # Keyboard input handling
-│   ├── config/           # Configuration system
-│   │   ├── schema.ts     # Zod config schema
-│   │   └── index.ts      # Config manager
-│   ├── utils/            # Utilities
-│   │   ├── helpers.ts    # Date, clipboard utilities
-│   │   └── commitlint.ts # Commit parser
-│   ├── types/            # TypeScript type definitions
-│   └── index.ts          # CLI entry point
-├── tests/                # Test files
-├── docs/                 # Documentation
-├── examples/             # Usage examples
-└── dist/                # Build output
-```
+| Module               | Tests | Coverage Area                                          |
+| -------------------- | ----- | ------------------------------------------------------ |
+| `project-management` | 130   | Jira, Linear, Notion, GitHub Issues integration        |
+| `pr-creation`        | 123   | PR generation, templates, interactive workflows        |
+| `work-journal`       | 123   | Persistent storage, search, cross-project, merge logic |
+| `auto-snapshot`      | 74    | Side-effect snapshots, git hooks, install/remove       |
+| `standup-context`    | 70    | Context building, formatting, enrichment               |
+| `copilot`            | 38    | Copilot CLI integration, retries, error handling       |
+| `pr-prompt`          | 26    | Custom prompt file loading and merging                 |
+| `pr-template`        | 25    | Template detection and section parsing                 |
+| `context-analyzer`   | 22    | Ticket extraction, work categorization                 |
+| `git-analyzer`       | 15    | Git operations, branch detection                       |
+| `commitlint`         | 6     | Conventional commit parsing                            |
+| `ui`                 | 2     | UI rendering                                           |
 
-## Tech Stack
-
-- **TypeScript** - Type-safe development
-- **Commander.js** - CLI framework
-- **simple-git** - Git operations
-- **execa** - Subprocess execution for Copilot CLI
-- **inquirer** - Interactive prompts
-- **chalk** - Terminal styling
-- **boxen** - Terminal boxes
-- **ora** - Loading spinners
-- **clipboardy** - Clipboard operations
+---
 
 ## FAQ
 
-**Q: Does this work offline?**  
-A: No, DevDaily AI requires GitHub Copilot CLI which needs an internet connection for AI summaries.
+**Q: Does this work offline?**
+A: Git analysis, snapshots, journal, and context recovery work offline. AI text generation requires GitHub Copilot CLI (internet connection). Use `--raw-context` to get structured data without AI.
 
-**Q: What git hosting providers are supported?**  
-A: DevDaily AI works with any git repository. GitHub CLI is only needed for creating PRs.
+**Q: What git hosting providers are supported?**
+A: DevDaily works with any git repository. PR creation requires GitHub CLI. Ticket integration supports GitHub, Jira, Linear, and Notion.
 
-**Q: Is my code sent to GitHub?**  
-A: Only commit messages and diffs are sent to GitHub Copilot CLI for summarization. Full file contents are not shared.
+**Q: Is my code sent to external services?**
+A: Only commit messages and diff summaries are sent to GitHub Copilot CLI. Full file contents are never shared. The work journal stays entirely local.
 
-**Q: Can I customize the output format?**  
-A: Yes! Use `--format` flag for standup command. PR and weekly commands support markdown by default.
+**Q: Can I use this with monorepos?**
+A: Yes. DevDaily analyzes the git history of your current directory. Use `--project` to track multiple sub-projects, and `--all-projects` for cross-project summaries.
 
-**Q: Does it work with monorepos?**  
-A: Yes! DevDaily AI analyzes the entire git history of your current directory.
+**Q: What about conventional commits?**
+A: DevDaily parses conventional commits automatically. PR titles are generated with proper `feat:`, `fix:`, `chore:` prefixes. Work is categorized by type.
 
-**Q: What about conventional commits?**  
-A: DevDaily AI parses conventional commits automatically and uses them for smart PR title generation.
+**Q: How do I clean up old journal data?**
+A: Run `devdaily snapshot --prune 90` to remove entries older than 90 days. Use `devdaily snapshot --stats` to see storage usage.
+
+**Q: Can I disable the auto-snapshot behavior?**
+A: Yes. Set `"journal": { "autoSnapshot": false }` in your config, or pass `--no-journal` to individual commands.
+
+---
 
 ## Troubleshooting
 
-### Command not found: devdaily
+### Common issues
 
-Make sure you installed globally:
+| Problem                        | Solution                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------ |
+| `command not found: devdaily`  | `npm install -g devdaily-ai`                                             |
+| `GitHub Copilot CLI not found` | `gh extension install github/gh-copilot`                                 |
+| `Not a git repository`         | Run inside a git repo, or use `--all-projects` for journal-only commands |
+| `No commits found`             | Make sure you have commits: `git log --oneline`                          |
+| PM tickets not appearing       | Run `devdaily connect --test` to diagnose                                |
 
-```bash
-npm install -g devdaily-ai
-```
-
-### GitHub Copilot CLI not found
-
-Install the Copilot extension:
-
-```bash
-gh extension install github/gh-copilot
-```
-
-### Not in a git repository
-
-DevDaily AI only works inside git repositories. Run:
+### Diagnostics
 
 ```bash
-git init  # Initialize a new repo
-# or
-cd /path/to/your/git/repo
+# Full system check
+devdaily doctor
+
+# Auto-fix what's possible
+devdaily doctor --fix
+
+# Debug any command
+devdaily standup --debug
+devdaily pr --debug
 ```
 
-### No commits found
-
-Make sure you have commits in your repository:
-
-```bash
-git log  # Check commit history
-```
-
-For more help, see our [documentation](docs/) or [open an issue](https://github.com/hempun10/devdaily/issues).
+---
 
 ## Roadmap
 
-- [ ] Support for Ollama (local AI models)
-- [ ] Analytics and tracking dashboard
-- [ ] Context recovery with AI-powered reminders
-- [ ] PR template detection and auto-fill
-- [ ] Integration with Jira/Linear/Asana
-- [ ] Team collaboration features
+- [x] Standup, PR, and weekly summary generation
+- [x] GitHub Issues, Jira, Linear, Notion integration
+- [x] PR template detection and auto-fill
+- [x] Interactive PR workflow (labels, reviewers, assignees)
+- [x] Persistent work journal and snapshots
+- [x] Context recovery (`devdaily context`)
+- [x] Work history search (`devdaily recall`)
+- [x] Automatic side-effect snapshots
+- [x] Git hooks for post-commit and post-checkout
+- [x] Cross-project weekly summaries
+- [x] Custom PR prompt files (`.devdaily-pr-prompt.md`)
+- [ ] Support for Ollama / local AI models
 - [ ] VS Code extension
+- [ ] Team collaboration features
+- [ ] Analytics and impact tracking dashboard
+- [ ] Scheduled auto-standup (cron / launchd)
+
+---
 
 ## Contributing
 
 We welcome contributions! See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
+```bash
+git clone https://github.com/hempun10/devdaily.git
+cd devdaily
+npm install
+npm test            # Make sure everything passes
+npm run dev         # Start developing
+```
+
+---
+
 ## License
 
 MIT © [Hem Pun](https://github.com/hempun10)
-
-## Acknowledgments
-
-Built for the [GitHub Copilot CLI Challenge](https://dev.to/devteam/join-the-github-copilot-cli-challenge-win-github-universe-tickets-copilot-pro-subscriptions-and-50af).
-
-Special thanks to:
-
-- GitHub Copilot CLI team
-- terminal.shop for UI inspiration
-- The awesome TypeScript community
 
 ---
 
 <div align="center">
 
-**[⬆ back to top](#devdaily-ai)**
+**[⬆ Back to top](#devdaily-ai)**
 
 Made with ❤️ by developers, for developers
 

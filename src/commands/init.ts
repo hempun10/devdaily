@@ -1,11 +1,14 @@
 import { Command } from 'commander';
-import { existsSync, readFileSync, appendFileSync } from 'fs';
+import { existsSync, readFileSync, appendFileSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import inquirer from 'inquirer';
 import UI from '../ui/renderer.js';
 import { ASCII } from '../ui/ascii.js';
 import { ConfigManager, type Secrets } from '../config/index.js';
+import { GitAnalyzer } from '../core/git-analyzer.js';
+import { generateSamplePRPrompt, findPRPromptFile } from '../core/pr-prompt.js';
+import { installGitHooks, removeGitHooks } from '../core/auto-snapshot.js';
 
 const { colors } = UI;
 
@@ -32,11 +35,11 @@ _devdaily() {
   local standup_opts="--days --format --no-copy"
   local pr_opts="--base --create --draft --no-copy"
   local week_opts="--last --start --no-copy"
-  
+
   _arguments \\
     '1:command:($commands)' \\
     '*::arg:->args'
-  
+
   case $words[1] in
     standup|s|su)
       _arguments $standup_opts
@@ -57,7 +60,7 @@ compdef _devdaily dd
 _devdaily_completions() {
   local cur="\${COMP_WORDS[COMP_CWORD]}"
   local commands="standup pr week dash config init help"
-  
+
   if [ \${COMP_CWORD} -eq 1 ]; then
     COMPREPLY=( $(compgen -W "\${commands}" -- \${cur}) )
   fi
@@ -140,6 +143,8 @@ export const initCommand = new Command('init')
   .option('--config', 'Only create config file')
   .option('--pm', 'Only set up project management integration')
   .option('--notifications', 'Only set up Slack/Discord notifications')
+  .option('--git-hooks', 'Install git hooks for automatic snapshots (post-commit, post-checkout)')
+  .option('--remove-hooks', 'Remove previously installed devdaily git hooks')
   .action(async (options) => {
     console.log('');
     console.log(UI.header('DevDaily Setup'));
@@ -151,9 +156,65 @@ export const initCommand = new Command('init')
 
     const tasks: Array<{ name: string; done: boolean; skipped: boolean }> = [];
 
+    // Auto-detect default branch
+    let detectedDefaultBranch = 'main';
+    const git = new GitAnalyzer();
+    const isRepo = await git.isRepository();
+
+    if (isRepo) {
+      const branchSpinner = UI.spinner('Detecting default branch...');
+      branchSpinner.start();
+      try {
+        detectedDefaultBranch = await git.getDefaultBranch();
+        branchSpinner.stop();
+        console.log(UI.info(`Detected default branch: ${colors.accent(detectedDefaultBranch)}`));
+      } catch {
+        branchSpinner.stop();
+        console.log(colors.muted('  Could not auto-detect default branch, using "main"'));
+      }
+    }
+
+    // Check for existing PR prompt file
+    let hasPRPrompt = false;
+    if (isRepo) {
+      try {
+        const repoRoot = await git.getRepoRoot();
+        hasPRPrompt = (await findPRPromptFile(repoRoot)) !== null;
+      } catch {
+        // ignore
+      }
+    }
+
+    console.log('');
+
     // Interactive setup if no specific options
+    // Handle --remove-hooks early
+    if (options.removeHooks) {
+      console.log(colors.bold('📸 Removing DevDaily Git Hooks'));
+      console.log('');
+      const removeResult = await removeGitHooks();
+      if (removeResult.removed.length > 0) {
+        for (const name of removeResult.removed) {
+          console.log(UI.success(`Removed: ${name}`));
+        }
+      } else {
+        console.log(UI.info('No devdaily git hooks found to remove.'));
+      }
+      for (const w of removeResult.warnings) {
+        console.log(UI.warning(w));
+      }
+      console.log('');
+      return;
+    }
+
     const hasSpecificOption =
-      options.alias || options.completions || options.config || options.pm || options.notifications;
+      options.alias ||
+      options.completions ||
+      options.config ||
+      options.pm ||
+      options.notifications ||
+      options.gitHooks ||
+      options.git_hooks;
 
     if (!hasSpecificOption) {
       const { features } = await inquirer.prompt([
@@ -183,8 +244,23 @@ export const initCommand = new Command('init')
               checked: true,
             },
             {
+              name: `${colors.accent('🔀')} Default branch & PR settings`,
+              value: 'branch',
+              checked: true,
+            },
+            {
+              name: `${colors.accent('📝')} PR description prompt file (.devdaily-pr-prompt.md)`,
+              value: 'pr_prompt',
+              checked: !hasPRPrompt,
+            },
+            {
               name: `${colors.accent('🔔')} Notifications (Slack/Discord webhooks)`,
               value: 'notifications',
+              checked: false,
+            },
+            {
+              name: `${colors.accent('📸')} Git hooks for automatic snapshots (post-commit, post-checkout)`,
+              value: 'git_hooks',
               checked: false,
             },
           ],
@@ -195,7 +271,10 @@ export const initCommand = new Command('init')
       options.completions = features.includes('completions');
       options.config = features.includes('config');
       options.pm = features.includes('pm');
+      options.branch = features.includes('branch');
+      options.pr_prompt = features.includes('pr_prompt');
       options.notifications = features.includes('notifications');
+      options.git_hooks = options.gitHooks || features.includes('git_hooks');
     }
 
     console.log('');
@@ -529,6 +608,112 @@ export const initCommand = new Command('init')
       }
     }
 
+    // Default branch & PR settings
+    if (options.branch) {
+      console.log('');
+      console.log(UI.divider());
+      console.log('');
+      console.log(colors.bold('🔀 Default Branch & PR Settings'));
+      console.log(colors.muted('  Configure the base branch for PRs and git comparisons'));
+      console.log('');
+
+      const branchAnswers = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'defaultBranch',
+          message: 'Default base branch (for PRs, diffs, standups):',
+          default: detectedDefaultBranch,
+        },
+        {
+          type: 'confirm',
+          name: 'includeDiff',
+          message: 'Include code diff in AI prompt for richer PR descriptions?',
+          default: true,
+        },
+        {
+          type: 'number',
+          name: 'maxDiffLines',
+          message: 'Max diff lines to send to AI (to avoid token limits):',
+          default: 200,
+          when: (answers: Record<string, unknown>) => Boolean(answers.includeDiff),
+        },
+      ]);
+
+      const configManager = ConfigManager.getInstance();
+      const prConfig = {
+        pr: {
+          defaultBase: branchAnswers.defaultBranch,
+          includeDiff: branchAnswers.includeDiff,
+          maxDiffLines: branchAnswers.maxDiffLines || 200,
+        },
+        git: {
+          defaultBranch: branchAnswers.defaultBranch,
+        },
+      } as Parameters<typeof configManager.update>[0];
+
+      if (options.global) {
+        configManager.update(prConfig);
+        configManager.saveGlobal();
+      } else {
+        configManager.saveLocal(prConfig as Parameters<typeof configManager.saveLocal>[0]);
+      }
+
+      console.log(
+        UI.success(`Default branch set to ${colors.accent(branchAnswers.defaultBranch)}`)
+      );
+      tasks.push({ name: 'Branch & PR settings', done: true, skipped: false });
+    }
+
+    // PR description prompt file
+    if (options.pr_prompt) {
+      console.log('');
+      console.log(UI.divider());
+      console.log('');
+      console.log(colors.bold('📝 PR Description Prompt'));
+      console.log(
+        colors.muted(
+          '  Create a .devdaily-pr-prompt.md file to customize how AI generates PR descriptions'
+        )
+      );
+      console.log(
+        colors.muted('  Think of it like CLAUDE.md — but specifically for PR descriptions')
+      );
+      console.log('');
+
+      if (hasPRPrompt) {
+        console.log(colors.muted(`  ${ASCII.status.check} PR prompt file already exists`));
+        tasks.push({ name: 'PR prompt file', done: false, skipped: true });
+      } else {
+        const { createPrompt } = await inquirer.prompt([
+          {
+            type: 'confirm',
+            name: 'createPrompt',
+            message: 'Create a .devdaily-pr-prompt.md with sample guidelines you can customize?',
+            default: true,
+          },
+        ]);
+
+        if (createPrompt) {
+          try {
+            const repoRoot = isRepo ? await git.getRepoRoot() : process.cwd();
+            const promptPath = join(repoRoot, '.devdaily-pr-prompt.md');
+            writeFileSync(promptPath, generateSamplePRPrompt());
+            console.log(
+              UI.success(
+                `Created ${colors.accent('.devdaily-pr-prompt.md')} — customize it for your team!`
+              )
+            );
+            tasks.push({ name: 'PR prompt file', done: true, skipped: false });
+          } catch {
+            console.log(UI.error('Failed to create PR prompt file'));
+            tasks.push({ name: 'PR prompt file', done: false, skipped: false });
+          }
+        } else {
+          tasks.push({ name: 'PR prompt file', done: false, skipped: true });
+        }
+      }
+    }
+
     // Create config (if not already done by PM setup)
     if (options.config && !options.pm) {
       try {
@@ -553,6 +738,99 @@ export const initCommand = new Command('init')
     console.log('');
 
     // Summary
+    // Git hooks for automatic snapshots
+    if (options.git_hooks || options.gitHooks) {
+      console.log('');
+      console.log(UI.divider());
+      console.log('');
+      console.log(colors.bold('📸 Git Hooks for Automatic Snapshots'));
+      console.log(
+        colors.muted(
+          '  Install hooks that automatically capture your work state on commit and branch switch'
+        )
+      );
+      console.log(
+        colors.muted('  Snapshots are lightweight, local-only, and run in the background')
+      );
+      console.log('');
+
+      if (!isRepo) {
+        console.log(UI.warning('Not a git repository — skipping git hooks'));
+        tasks.push({ name: 'Git hooks', done: false, skipped: true });
+      } else {
+        const { hookChoices } = await inquirer.prompt([
+          {
+            type: 'checkbox',
+            name: 'hookChoices',
+            message: 'Which hooks would you like to install?',
+            choices: [
+              {
+                name: `post-commit — snapshot after each commit`,
+                value: 'post-commit',
+                checked: true,
+              },
+              {
+                name: `post-checkout — snapshot when switching branches`,
+                value: 'post-checkout',
+                checked: true,
+              },
+            ],
+          },
+        ]);
+
+        if (hookChoices.length === 0) {
+          console.log(colors.muted('  No hooks selected'));
+          tasks.push({ name: 'Git hooks', done: false, skipped: true });
+        } else {
+          const hookResult = await installGitHooks({
+            postCommit: hookChoices.includes('post-commit'),
+            postCheckout: hookChoices.includes('post-checkout'),
+          });
+
+          if (hookResult.installed.length > 0) {
+            for (const name of hookResult.installed) {
+              console.log(UI.success(`Installed: ${name}`));
+            }
+
+            // Update config to reflect git hooks are enabled
+            try {
+              const configManager = ConfigManager.getInstance();
+              const currentConfig = configManager.get();
+              configManager.update({
+                ...currentConfig,
+                journal: {
+                  ...currentConfig.journal,
+                  autoSnapshot: true,
+                  gitHooks: true,
+                  hooks: {
+                    postCommit: hookChoices.includes('post-commit'),
+                    postCheckout: hookChoices.includes('post-checkout'),
+                  },
+                },
+              });
+              if (options.global) {
+                configManager.saveGlobal();
+              } else {
+                configManager.saveLocal();
+              }
+            } catch {
+              // Non-fatal — hooks are installed even if config update fails
+            }
+
+            tasks.push({ name: 'Git hooks', done: true, skipped: false });
+          }
+
+          for (const name of hookResult.skipped) {
+            console.log(colors.muted(`  ${ASCII.status.check} ${name}`));
+          }
+
+          for (const w of hookResult.warnings) {
+            console.log(UI.warning(w));
+          }
+        }
+      }
+    }
+
     const completed = tasks.filter((t) => t.done).length;
     const skipped = tasks.filter((t) => t.skipped).length;
 
@@ -575,6 +853,9 @@ export const initCommand = new Command('init')
     );
     console.log(
       `  ${colors.primary('dd dash')}       ${colors.muted('# Open interactive dashboard')}`
+    );
+    console.log(
+      `  ${colors.primary('dd context')}    ${colors.muted('# Resume where you left off')}`
     );
     console.log('');
   });
