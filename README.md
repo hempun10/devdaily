@@ -358,9 +358,9 @@ DevDaily automatically fetches GitHub issue context to provide **richer, more me
 devdaily standup
 
 # Skip issue fetching (faster, offline)
-devdaily standup --no-issues
-devdaily pr --no-issues
-devdaily week --no-issues
+devdaily standup --no-tickets
+devdaily pr --no-tickets
+devdaily week --no-tickets
 ```
 
 ## Configuration

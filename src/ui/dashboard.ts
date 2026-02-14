@@ -92,7 +92,8 @@ export class Dashboard {
         deletions: diffStats.deletions,
       };
     } catch {
-      // Ignore errors, use defaults
+      // Expected: may fail if not in a git repo or no commits exist yet.
+      // Dashboard will render with default/empty state values.
     }
   }
 
@@ -326,8 +327,6 @@ export class Dashboard {
           message: 'What next?',
           choices: [
             { name: 'Copy to clipboard', value: 'copy' },
-            { name: 'Create PR on GitHub', value: 'create' },
-            { name: 'Create draft PR', value: 'draft' },
             { name: 'Back to dashboard', value: 'back' },
           ],
         },
@@ -336,9 +335,7 @@ export class Dashboard {
       if (action === 'copy') {
         await copyToClipboard(description);
         console.log(UI.success('Copied to clipboard!'));
-      } else if (action === 'create' || action === 'draft') {
-        // TODO: Implement PR creation
-        console.log(UI.info('PR creation coming in next update'));
+        console.log(UI.info('Tip: Use `devdaily pr --create` to create PRs directly'));
       }
     } catch (error) {
       spinner.stop();
