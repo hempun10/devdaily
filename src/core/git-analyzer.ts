@@ -37,25 +37,37 @@ export class GitAnalyzer {
       args.push(`--author=${options.author}`);
     }
 
-    args.push('--format=%H|%s|%b|%an|%ae|%ai');
+    // Use unique delimiters for field and record separation
+    const FIELD_SEP = '<<<DD_FIELD>>>';
+    const RECORD_SEP = '<<<DD_RECORD>>>';
+    args.push(
+      `--format=${RECORD_SEP}%H${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%ae${FIELD_SEP}%ai`
+    );
 
     const result = await this.git.raw(args);
 
+    if (!result || !result.trim()) {
+      return [];
+    }
+
     const commits = result
-      .trim()
-      .split('\n')
+      .split(RECORD_SEP)
       .filter(Boolean)
-      .map((line) => {
-        const parts = line.split('|');
-        const [hash, message, body, author, _authorEmail, date] = parts;
+      .map((record) => {
+        const parts = record.trim().split(FIELD_SEP);
+        if (parts.length < 5) {
+          return null;
+        }
+        const [hash, message, author, _authorEmail, date] = parts;
         return {
-          hash,
-          message,
-          author,
-          date: new Date(date),
-          body: body || '',
+          hash: hash || '',
+          message: message || '',
+          author: author || '',
+          date: new Date(date || Date.now()),
+          body: '', // Skip body to avoid newline issues
         };
-      });
+      })
+      .filter((c): c is Commit => c !== null && !!c.message);
 
     return commits;
   }
