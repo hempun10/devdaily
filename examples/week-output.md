@@ -11,48 +11,37 @@ devdaily week
 ```
 ╭──────────────────────────────────────────────────────────╮
 │                                                          │
-│   Weekly Summary                                        │
+│   Weekly Summary                                         │
 │                                                          │
 ╰──────────────────────────────────────────────────────────╯
 
-Analyzing commits from Feb 5 - Feb 12, 2026...
-
-Week of February 5-12, 2026
-────────────────────────────────────────────────────────────
-
 ## Highlights
 
-Built and launched DevDaily AI - a CLI tool that saves developers
-time by auto-generating standup notes, PR descriptions, and weekly
-summaries from git history.
+Focused on backend auth improvements and API reliability this
+week. Shipped JWT token refresh, fixed rate limiting, and
+closed several long-standing bugs in the WebSocket layer.
 
 ## Key Accomplishments
 
 ### Features Shipped
-- Standup generator with multi-format support
-- PR description auto-generation with commitlint
-- Interactive PR workflow (preview/draft)
-- Weekly summary command
-- Context recovery stub
+- Implemented automatic JWT token refresh with configurable
+  expiry thresholds (PROJ-234)
+- Added CSV export for dashboard analytics reports (PROJ-289)
+- Built dark mode toggle for the settings page (#42)
 
-### Technical Work
-- Set up TypeScript project with strict mode
-- Implemented GitHub Copilot CLI integration
-- Built professional terminal UI (no emojis)
-- Added comprehensive test suite (9 tests, 100% passing)
-- Configured CI/CD with GitHub Actions
-- Set up Husky pre-commit hooks
-- Published to NPM as devdaily-ai v0.1.0
+### Bug Fixes
+- Fixed API rate limiting to return HTTP 429 instead of 500
+- Resolved race condition in WebSocket reconnection handler
+- Fixed login page crash on mobile Safari (PROJ-201)
 
-### Code Quality
-- ESLint + Prettier configured
-- Commitlint for conventional commits
-- Type-safe with TypeScript strict mode
-- 18.97 KB bundle size (15.2 KB gzipped)
+### Technical Improvements
+- Refactored user service to use repository pattern
+- Added integration test suite for auth middleware
+- Updated CI pipeline to run tests in parallel
 
-## Impact
+## Stats
 
-23 commits | 15 files changed | +2,847 -0 lines
+23 commits │ 4 PRs merged │ 1 PR open │ 3 tickets closed
 
 ────────────────────────────────────────────────────────────
 
@@ -65,4 +54,73 @@ summaries from git history.
 devdaily week --last
 ```
 
-Shows summary for the previous week (Feb 29 - Feb 5, 2026)
+Shows the summary for the previous week.
+
+## Custom Date Range
+
+```bash
+devdaily week --from 2025-06-01 --to 2025-06-07
+```
+
+Shows the summary for a specific date range.
+
+## Cross-Project Summary
+
+```bash
+devdaily week --all-projects
+```
+
+Aggregates data from all projects tracked in the local journal:
+
+```
+╭──────────────────────────────────────────────────────────╮
+│                                                          │
+│   Weekly Summary (All Projects)                          │
+│                                                          │
+╰──────────────────────────────────────────────────────────╯
+
+## backend-api (14 commits)
+- Shipped auth refresh and rate limiting improvements
+- Fixed WebSocket reconnection race condition
+
+## frontend-app (9 commits)
+- Added dark mode toggle and settings page redesign
+- Fixed mobile Safari login crash
+
+────────────────────────────────────────────────────────────
+
+Total: 23 commits across 2 projects
+
+✓ Copied to clipboard
+```
+
+## JSON Output
+
+```bash
+devdaily week --json
+```
+
+Outputs machine-readable stats (useful for dashboards or automation):
+
+```json
+{
+  "period": {
+    "start": "2025-07-07",
+    "end": "2025-07-13"
+  },
+  "commits": 23,
+  "pullRequests": {
+    "merged": 4,
+    "open": 1
+  },
+  "filesChanged": 34,
+  "insertions": 1247,
+  "deletions": 389,
+  "topFiles": ["src/services/auth.ts", "src/middleware/rate-limit.ts", "src/handlers/websocket.ts"],
+  "categories": [
+    { "name": "backend", "percentage": 60 },
+    { "name": "frontend", "percentage": 25 },
+    { "name": "tests", "percentage": 15 }
+  ]
+}
+```

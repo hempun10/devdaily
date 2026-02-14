@@ -1,39 +1,37 @@
-# Pull Request Title
+## Description
 
-[Provide a succinct and descriptive title for the pull request, e.g., "Improve caching mechanism for API calls"]
+<!-- What does this PR do? Provide a clear and concise description of the changes. -->
 
-## Jira Ticket number and link
+## Motivation
 
-**Ticket No:**
+<!-- Why is this change needed? Link any related issues. -->
 
-**Ticket link:**
+Closes #
 
 ## Type of Change
 
-- 🚀 New feature
-- 🪲 Bug fix
-- 📈 Documentation update
-- 🛠️ Refactoring
-- 🐦‍🔥 Hotfix
-- 🔐 Security patch
-- ✨ UI/UX improvement
+- [ ] Bug fix (non-breaking change that fixes an issue)
+- [ ] New feature (non-breaking change that adds functionality)
+- [ ] Breaking change (fix or feature that would cause existing functionality to change)
+- [ ] Documentation update
+- [ ] Refactoring (no functional changes)
+- [ ] Tests (adding or updating tests)
+- [ ] CI/Build (changes to build process or CI configuration)
 
-## Description
+## How Has This Been Tested?
 
-[Provide a detailed explanation of the changes you have made. Include the reasons behind these changes and any relevant context. Link any related issues.]
+<!-- Describe how you tested your changes. Include any relevant details. -->
 
-## Impact
-
-[Discuss the impact of your changes on the project. This might include effects on performance, new dependencies, or changes in behaviour.]
-
-## Additional Information
-
-[Additional information that reviewers should be aware of.]
+- [ ] `npm test` — all tests pass
+- [ ] `npm run typecheck` — no type errors
+- [ ] `npm run lint` — no lint errors
+- [ ] Manual testing (describe below)
 
 ## Checklist
 
-- [x] My code adheres to the coding and style guidelines of the project.
-- [x] I have performed a self-review of my own code.
-- [x] I have commented my code, particularly in hard-to-understand areas.
-- [x] I have made corresponding changes to the documentation.
-- [x] My changes generate no new warnings
+- [ ] My code follows the [contributing guidelines](../CONTRIBUTING.md)
+- [ ] I have performed a self-review of my own code
+- [ ] I have added tests that prove my fix is effective or my feature works
+- [ ] New and existing tests pass locally with my changes
+- [ ] I have updated documentation if needed (README, help text, JSDoc)
+- [ ] My commits follow the [conventional commit](https://www.conventionalcommits.org/) format

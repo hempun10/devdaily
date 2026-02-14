@@ -24,13 +24,16 @@
   "keywords": [
     "cli",
     "git",
-    "pr",
     "standup",
+    "pr",
+    "weekly-summary",
     "copilot",
     "ai",
-    "developer-tools"
+    "developer-tools",
+    "productivity",
+    "devtools"
   ],
-  "author": "",
+  "author": "Hem Pun <https://github.com/hempun10>",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -43,7 +46,9 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md"
   ],
   "dependencies": {
     "boxen": "^8.0.1",

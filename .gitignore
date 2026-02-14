@@ -1,20 +1,24 @@
 # Dependencies
 node_modules/
-.pnp
-.pnp.js
 
-# Build
+# Build output
 dist/
 build/
 *.tsbuildinfo
 
-# Environment
+# Test coverage
+coverage/
+.nyc_output/
+
+# Environment & secrets
 .env
 .env.local
 .env.*.local
+.devdaily.secrets.json
+*.secrets.json
 
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -22,25 +26,37 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Editor
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+._*
+
+# Editors & IDEs
 .vscode/
 .idea/
+*.sublime-project
+*.sublime-workspace
 *.swp
 *.swo
 *.swn
-.DS_Store
+*~
+.project
+.classpath
+.settings/
 
-# Testing
-coverage/
-.nyc_output/
+# Package manager
+*.tgz
+.pnp
+.pnp.js
+.yarn/
+.pnpm-store/
 
 # Misc
 *.pid
 *.seed
 *.pid.lock
 .cache/
-
-# DevDaily secrets (API tokens, credentials)
-.devdaily.secrets.json
-secrets.json
-*.secrets.json
+tmp/
+temp/
