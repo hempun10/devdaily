@@ -1,5 +1,17 @@
 import { execa } from 'execa';
 import { getConfig, getSecrets } from '../config/index.js';
+import {
+  PMAuthError,
+  PMConfigError,
+  PMConnectionError,
+  PMNotFoundError,
+  PMRateLimitError,
+  PMResponseError,
+  type PMConnectionTestResult,
+  type PMTool,
+  successResult,
+  failureResult,
+} from './pm-errors.js';
 
 /**
  * Common interface for tickets/issues across different tools
@@ -130,8 +142,60 @@ export function extractTicketFromBranch(branchName: string): string | null {
   return null;
 }
 
+// ─── Helpers for fetch-based API calls ────────────────────────────────────────
+
 /**
- * Abstract base class for project management integrations
+ * Interpret an HTTP response and throw the appropriate PMError
+ * if the status code indicates a problem.
+ */
+function handleHttpStatus(tool: PMTool, response: Response, resourceId?: string): void {
+  if (response.ok) return; // 2xx – nothing to do
+
+  switch (response.status) {
+    case 401:
+    case 403:
+      throw new PMAuthError(tool, `${tool} returned ${response.status}: ${response.statusText}`);
+    case 404:
+      if (resourceId) {
+        throw new PMNotFoundError(tool, resourceId);
+      }
+      throw new PMConnectionError(tool, `Resource not found (404) on ${tool}`, 404);
+    case 429: {
+      const retryAfter = response.headers.get('retry-after');
+      const retryMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : undefined;
+      throw new PMRateLimitError(tool, retryMs);
+    }
+    default:
+      if (response.status >= 500) {
+        throw new PMConnectionError(
+          tool,
+          `${tool} server error: ${response.status} ${response.statusText}`,
+          response.status
+        );
+      }
+      throw new PMResponseError(
+        tool,
+        `${tool} API returned unexpected status ${response.status}: ${response.statusText}`
+      );
+  }
+}
+
+/**
+ * Safely parse JSON from a Response, wrapping parse errors in PMResponseError
+ */
+async function safeParseJson(tool: PMTool, response: Response): Promise<unknown> {
+  const text = await response.text();
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    throw new PMResponseError(tool, `Failed to parse ${tool} API response as JSON`, err);
+  }
+}
+
+// ─── Abstract base class ──────────────────────────────────────────────────────
+
+/**
+ * Abstract PM client with common helpers
  */
 export abstract class ProjectManagementClient {
   abstract readonly tool: 'github' | 'jira' | 'linear' | 'notion';
@@ -142,6 +206,18 @@ export abstract class ProjectManagementClient {
   abstract searchTickets(query: string, limit?: number): Promise<Ticket[]>;
   abstract getMyTickets(limit?: number): Promise<Ticket[]>;
   abstract getRecentlyClosedTickets(days?: number): Promise<Ticket[]>;
+
+  /**
+   * Test the connection to the PM tool.
+   * Validates credentials, reachability, and authentication in one call.
+   */
+  abstract testConnection(): Promise<PMConnectionTestResult>;
+
+  /**
+   * Get a list of missing configuration fields for this tool.
+   * Returns an empty array when fully configured.
+   */
+  abstract getMissingConfig(): string[];
 
   /**
    * Format ticket for AI context
@@ -166,19 +242,17 @@ export abstract class ProjectManagementClient {
   }
 }
 
+// ─── Jira Client ──────────────────────────────────────────────────────────────
+
 /**
- * Jira integration using the Jira CLI or API
+ * Jira integration using native fetch (REST API v3)
  */
 export class JiraClient extends ProjectManagementClient {
   readonly tool = 'jira' as const;
 
-  async isConfigured(): Promise<boolean> {
-    const baseUrl = this.getBaseUrl();
-    const auth = this.getAuth();
-    return !!(baseUrl && auth);
-  }
+  // --- configuration helpers (public for testing) ---
 
-  private getBaseUrl(): string {
+  getBaseUrl(): string {
     const config = getConfig();
     const secrets = getSecrets();
     return (
@@ -189,7 +263,7 @@ export class JiraClient extends ProjectManagementClient {
     );
   }
 
-  private getAuth(): { email: string; token: string } | null {
+  getAuth(): { email: string; token: string } | null {
     const secrets = getSecrets();
     const email = secrets.jira?.email || process.env.JIRA_EMAIL;
     const token = secrets.jira?.apiToken || process.env.JIRA_API_TOKEN;
@@ -197,24 +271,105 @@ export class JiraClient extends ProjectManagementClient {
     return { email, token };
   }
 
-  async getTicket(ticketId: string): Promise<Ticket | null> {
-    const baseUrl = this.getBaseUrl();
+  private authHeader(): string {
     const auth = this.getAuth();
+    if (!auth) throw new PMConfigError('jira', this.getMissingConfig());
+    return 'Basic ' + Buffer.from(`${auth.email}:${auth.token}`).toString('base64');
+  }
 
-    if (!baseUrl || !auth) return null;
+  getMissingConfig(): string[] {
+    const missing: string[] = [];
+    if (!this.getBaseUrl()) missing.push('baseUrl');
+    const secrets = getSecrets();
+    const email = secrets.jira?.email || process.env.JIRA_EMAIL;
+    const token = secrets.jira?.apiToken || process.env.JIRA_API_TOKEN;
+    if (!email) missing.push('email');
+    if (!token) missing.push('apiToken');
+    return missing;
+  }
 
+  async isConfigured(): Promise<boolean> {
+    return this.getMissingConfig().length === 0;
+  }
+
+  // --- fetch helper ---
+
+  private async jiraFetch(
+    path: string,
+    options: RequestInit = {},
+    resourceId?: string
+  ): Promise<unknown> {
+    const baseUrl = this.getBaseUrl();
+    if (!baseUrl) throw new PMConfigError('jira', ['baseUrl']);
+
+    const url = `${baseUrl}${path}`;
+    let response: Response;
     try {
-      const { stdout } = await execa('curl', [
-        '-s',
-        '-u',
-        `${auth.email}:${auth.token}`,
-        `${baseUrl}/rest/api/3/issue/${ticketId}`,
-      ]);
+      response = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: this.authHeader(),
+          ...(options.headers as Record<string, string> | undefined),
+        },
+      });
+    } catch (err) {
+      throw new PMConnectionError(
+        'jira',
+        `Could not reach Jira at ${baseUrl} — check network and base URL`,
+        undefined,
+        err
+      );
+    }
 
-      const data = JSON.parse(stdout);
-      if (data.errorMessages) return null;
+    handleHttpStatus('jira', response, resourceId);
+    return safeParseJson('jira', response);
+  }
 
-      return this.parseJiraIssue(data, baseUrl);
+  // --- public API ---
+
+  async testConnection(): Promise<PMConnectionTestResult> {
+    const missing = this.getMissingConfig();
+    if (missing.length > 0) {
+      return failureResult('jira', new PMConfigError('jira', missing));
+    }
+
+    const start = Date.now();
+    try {
+      const data = (await this.jiraFetch('/rest/api/3/myself')) as Record<string, unknown>;
+      const elapsed = Date.now() - start;
+      const displayName = (data.displayName as string) || (data.emailAddress as string) || '';
+      return successResult(
+        'jira',
+        displayName ? `Authenticated as ${displayName}` : undefined,
+        elapsed
+      );
+    } catch (err) {
+      if (
+        err instanceof PMAuthError ||
+        err instanceof PMConnectionError ||
+        err instanceof PMConfigError
+      ) {
+        return failureResult('jira', err);
+      }
+      return failureResult(
+        'jira',
+        new PMConnectionError('jira', (err as Error).message, undefined, err)
+      );
+    }
+  }
+
+  async getTicket(ticketId: string): Promise<Ticket | null> {
+    if (!(await this.isConfigured())) return null;
+    try {
+      const data = (await this.jiraFetch(
+        `/rest/api/3/issue/${encodeURIComponent(ticketId)}`,
+        {},
+        ticketId
+      )) as Record<string, unknown>;
+      if ((data as Record<string, unknown>).errorMessages) return null;
+      return this.parseJiraIssue(data, this.getBaseUrl());
     } catch {
       return null;
     }
@@ -226,33 +381,22 @@ export class JiraClient extends ProjectManagementClient {
   }
 
   async searchTickets(query: string, limit = 10): Promise<Ticket[]> {
-    const baseUrl = this.getBaseUrl();
-    const auth = this.getAuth();
+    if (!(await this.isConfigured())) return [];
     const config = getConfig();
     const projectKey = config.projectManagement.jira.projectKey;
-
-    if (!baseUrl || !auth) return [];
 
     try {
       const jql = projectKey
         ? `project = ${projectKey} AND text ~ "${query}" ORDER BY updated DESC`
         : `text ~ "${query}" ORDER BY updated DESC`;
 
-      const { stdout } = await execa('curl', [
-        '-s',
-        '-u',
-        `${auth.email}:${auth.token}`,
-        '-G',
-        '--data-urlencode',
-        `jql=${jql}`,
-        '--data-urlencode',
-        `maxResults=${limit}`,
-        `${baseUrl}/rest/api/3/search`,
-      ]);
-
-      const data = JSON.parse(stdout);
-      return (data.issues || []).map((issue: unknown) =>
-        this.parseJiraIssue(issue as Record<string, unknown>, baseUrl)
+      const params = new URLSearchParams({ jql, maxResults: String(limit) });
+      const data = (await this.jiraFetch(`/rest/api/3/search?${params.toString()}`)) as Record<
+        string,
+        unknown
+      >;
+      return ((data.issues as unknown[]) || []).map((issue) =>
+        this.parseJiraIssue(issue as Record<string, unknown>, this.getBaseUrl())
       );
     } catch {
       return [];
@@ -260,29 +404,16 @@ export class JiraClient extends ProjectManagementClient {
   }
 
   async getMyTickets(limit = 10): Promise<Ticket[]> {
-    const baseUrl = this.getBaseUrl();
-    const auth = this.getAuth();
-
-    if (!baseUrl || !auth) return [];
-
+    if (!(await this.isConfigured())) return [];
     try {
       const jql = 'assignee = currentUser() AND status != Done ORDER BY updated DESC';
-
-      const { stdout } = await execa('curl', [
-        '-s',
-        '-u',
-        `${auth.email}:${auth.token}`,
-        '-G',
-        '--data-urlencode',
-        `jql=${jql}`,
-        '--data-urlencode',
-        `maxResults=${limit}`,
-        `${baseUrl}/rest/api/3/search`,
-      ]);
-
-      const data = JSON.parse(stdout);
-      return (data.issues || []).map((issue: unknown) =>
-        this.parseJiraIssue(issue as Record<string, unknown>, baseUrl)
+      const params = new URLSearchParams({ jql, maxResults: String(limit) });
+      const data = (await this.jiraFetch(`/rest/api/3/search?${params.toString()}`)) as Record<
+        string,
+        unknown
+      >;
+      return ((data.issues as unknown[]) || []).map((issue) =>
+        this.parseJiraIssue(issue as Record<string, unknown>, this.getBaseUrl())
       );
     } catch {
       return [];
@@ -290,34 +421,25 @@ export class JiraClient extends ProjectManagementClient {
   }
 
   async getRecentlyClosedTickets(days = 7): Promise<Ticket[]> {
-    const baseUrl = this.getBaseUrl();
-    const auth = this.getAuth();
-
-    if (!baseUrl || !auth) return [];
-
+    if (!(await this.isConfigured())) return [];
     try {
       const jql = `assignee = currentUser() AND status = Done AND resolved >= -${days}d ORDER BY resolved DESC`;
-
-      const { stdout } = await execa('curl', [
-        '-s',
-        '-u',
-        `${auth.email}:${auth.token}`,
-        '-G',
-        '--data-urlencode',
-        `jql=${jql}`,
-        `${baseUrl}/rest/api/3/search`,
-      ]);
-
-      const data = JSON.parse(stdout);
-      return (data.issues || []).map((issue: unknown) =>
-        this.parseJiraIssue(issue as Record<string, unknown>, baseUrl)
+      const params = new URLSearchParams({ jql });
+      const data = (await this.jiraFetch(`/rest/api/3/search?${params.toString()}`)) as Record<
+        string,
+        unknown
+      >;
+      return ((data.issues as unknown[]) || []).map((issue) =>
+        this.parseJiraIssue(issue as Record<string, unknown>, this.getBaseUrl())
       );
     } catch {
       return [];
     }
   }
 
-  private parseJiraIssue(issue: Record<string, unknown>, baseUrl: string): Ticket {
+  // --- parsing helpers (public for testing) ---
+
+  parseJiraIssue(issue: Record<string, unknown>, baseUrl: string): Ticket {
     const fields = issue.fields as Record<string, unknown>;
     const issueType = fields.issuetype as Record<string, unknown>;
     const priority = fields.priority as Record<string, unknown> | null;
@@ -339,7 +461,7 @@ export class JiraClient extends ProjectManagementClient {
     };
   }
 
-  private mapJiraType(type: string): 'bug' | 'feature' | 'task' | 'story' | 'epic' | 'other' {
+  mapJiraType(type: string): 'bug' | 'feature' | 'task' | 'story' | 'epic' | 'other' {
     const lower = type.toLowerCase();
     if (lower.includes('bug')) return 'bug';
     if (lower.includes('feature')) return 'feature';
@@ -349,7 +471,7 @@ export class JiraClient extends ProjectManagementClient {
     return 'other';
   }
 
-  private mapJiraPriority(priority: string): 'low' | 'medium' | 'high' | 'critical' | undefined {
+  mapJiraPriority(priority: string): 'low' | 'medium' | 'high' | 'critical' | undefined {
     const lower = priority.toLowerCase();
     if (lower.includes('critical') || lower.includes('blocker')) return 'critical';
     if (lower.includes('high')) return 'high';
@@ -359,43 +481,102 @@ export class JiraClient extends ProjectManagementClient {
   }
 }
 
+// ─── Linear Client ────────────────────────────────────────────────────────────
+
 /**
- * Linear integration using the Linear API
+ * Linear integration using native fetch (GraphQL API)
  */
 export class LinearClient extends ProjectManagementClient {
   readonly tool = 'linear' as const;
 
-  private getApiKey(): string | null {
+  private static readonly API_URL = 'https://api.linear.app/graphql';
+
+  getApiKey(): string | null {
     const secrets = getSecrets();
     return secrets.linear?.apiKey || process.env.LINEAR_API_KEY || null;
+  }
+
+  getMissingConfig(): string[] {
+    return this.getApiKey() ? [] : ['apiKey'];
   }
 
   async isConfigured(): Promise<boolean> {
     return !!this.getApiKey();
   }
 
+  // --- fetch helper ---
+
   private async graphql(query: string, variables: Record<string, unknown> = {}): Promise<unknown> {
     const apiKey = this.getApiKey();
-    if (!apiKey) throw new Error('LINEAR_API_KEY not set');
+    if (!apiKey) throw new PMConfigError('linear', ['apiKey']);
 
-    const { stdout } = await execa('curl', [
-      '-s',
-      '-X',
-      'POST',
-      '-H',
-      'Content-Type: application/json',
-      '-H',
-      `Authorization: ${apiKey}`,
-      '-d',
-      JSON.stringify({ query, variables }),
-      'https://api.linear.app/graphql',
-    ]);
-
-    const response = JSON.parse(stdout);
-    if (response.errors) {
-      throw new Error(response.errors[0]?.message || 'GraphQL error');
+    let response: Response;
+    try {
+      response = await fetch(LinearClient.API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: apiKey,
+        },
+        body: JSON.stringify({ query, variables }),
+      });
+    } catch (err) {
+      throw new PMConnectionError(
+        'linear',
+        'Could not reach Linear API — check your network connection',
+        undefined,
+        err
+      );
     }
-    return response.data;
+
+    handleHttpStatus('linear', response);
+
+    const data = (await safeParseJson('linear', response)) as Record<string, unknown>;
+    const errors = data.errors as Array<{ message: string }> | undefined;
+    if (errors && errors.length > 0) {
+      const msg = errors[0].message;
+      if (
+        msg.toLowerCase().includes('authentication') ||
+        msg.toLowerCase().includes('unauthorized')
+      ) {
+        throw new PMAuthError('linear', `Linear GraphQL error: ${msg}`);
+      }
+      throw new PMResponseError('linear', `Linear GraphQL error: ${msg}`);
+    }
+    return data.data;
+  }
+
+  // --- public API ---
+
+  async testConnection(): Promise<PMConnectionTestResult> {
+    const missing = this.getMissingConfig();
+    if (missing.length > 0) {
+      return failureResult('linear', new PMConfigError('linear', missing));
+    }
+
+    const start = Date.now();
+    try {
+      const data = (await this.graphql('query { viewer { id name email } }')) as Record<
+        string,
+        unknown
+      >;
+      const elapsed = Date.now() - start;
+      const viewer = data.viewer as Record<string, unknown>;
+      const name = (viewer?.name as string) || (viewer?.email as string) || '';
+      return successResult('linear', name ? `Authenticated as ${name}` : undefined, elapsed);
+    } catch (err) {
+      if (
+        err instanceof PMAuthError ||
+        err instanceof PMConnectionError ||
+        err instanceof PMConfigError
+      ) {
+        return failureResult('linear', err);
+      }
+      return failureResult(
+        'linear',
+        new PMConnectionError('linear', (err as Error).message, undefined, err)
+      );
+    }
   }
 
   async getTicket(ticketId: string): Promise<Ticket | null> {
@@ -534,7 +715,9 @@ export class LinearClient extends ProjectManagementClient {
     }
   }
 
-  private parseLinearIssue(issue: Record<string, unknown>): Ticket {
+  // --- parsing helpers (public for testing) ---
+
+  parseLinearIssue(issue: Record<string, unknown>): Ticket {
     const state = issue.state as Record<string, unknown>;
     const assignee = issue.assignee as Record<string, unknown> | null;
     const labelsObj = issue.labels as Record<string, unknown>;
@@ -554,9 +737,7 @@ export class LinearClient extends ProjectManagementClient {
     };
   }
 
-  private inferTypeFromLabels(
-    labels: string[]
-  ): 'bug' | 'feature' | 'task' | 'story' | 'epic' | 'other' {
+  inferTypeFromLabels(labels: string[]): 'bug' | 'feature' | 'task' | 'story' | 'epic' | 'other' {
     const joined = labels.join(' ').toLowerCase();
     if (joined.includes('bug')) return 'bug';
     if (joined.includes('feature')) return 'feature';
@@ -564,7 +745,7 @@ export class LinearClient extends ProjectManagementClient {
     return 'task';
   }
 
-  private mapLinearPriority(priority: number): 'low' | 'medium' | 'high' | 'critical' | undefined {
+  mapLinearPriority(priority: number): 'low' | 'medium' | 'high' | 'critical' | undefined {
     // Linear uses 0-4: 0=no priority, 1=urgent, 2=high, 3=medium, 4=low
     switch (priority) {
       case 1:
@@ -581,18 +762,23 @@ export class LinearClient extends ProjectManagementClient {
   }
 }
 
+// ─── Notion Client ────────────────────────────────────────────────────────────
+
 /**
- * Notion integration using the Notion API
+ * Notion integration using native fetch (REST API, version 2022-06-28)
  */
 export class NotionClient extends ProjectManagementClient {
   readonly tool = 'notion' as const;
 
-  private getApiKey(): string | null {
+  private static readonly API_BASE = 'https://api.notion.com/v1';
+  private static readonly API_VERSION = '2022-06-28';
+
+  getApiKey(): string | null {
     const secrets = getSecrets();
     return secrets.notion?.apiKey || process.env.NOTION_API_KEY || null;
   }
 
-  private getDatabaseId(): string | null {
+  getDatabaseId(): string | null {
     const config = getConfig();
     const secrets = getSecrets();
     return (
@@ -603,43 +789,117 @@ export class NotionClient extends ProjectManagementClient {
     );
   }
 
-  async isConfigured(): Promise<boolean> {
-    return !!(this.getApiKey() && this.getDatabaseId());
+  getMissingConfig(): string[] {
+    const missing: string[] = [];
+    if (!this.getApiKey()) missing.push('apiKey');
+    if (!this.getDatabaseId()) missing.push('databaseId');
+    return missing;
   }
 
-  private async request(
+  async isConfigured(): Promise<boolean> {
+    return this.getMissingConfig().length === 0;
+  }
+
+  // --- fetch helper ---
+
+  private async notionFetch(
     endpoint: string,
     method = 'GET',
-    body?: Record<string, unknown>
+    body?: Record<string, unknown>,
+    resourceId?: string
   ): Promise<unknown> {
     const apiKey = this.getApiKey();
-    if (!apiKey) throw new Error('NOTION_API_KEY not set');
+    if (!apiKey) throw new PMConfigError('notion', ['apiKey']);
 
-    const args = [
-      '-s',
-      '-X',
+    const url = `${NotionClient.API_BASE}${endpoint}`;
+    const init: RequestInit = {
       method,
-      '-H',
-      'Content-Type: application/json',
-      '-H',
-      `Authorization: Bearer ${apiKey}`,
-      '-H',
-      'Notion-Version: 2022-06-28',
-    ];
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        'Notion-Version': NotionClient.API_VERSION,
+      },
+    };
 
     if (body) {
-      args.push('-d', JSON.stringify(body));
+      init.body = JSON.stringify(body);
     }
 
-    args.push(`https://api.notion.com/v1${endpoint}`);
+    let response: Response;
+    try {
+      response = await fetch(url, init);
+    } catch (err) {
+      throw new PMConnectionError(
+        'notion',
+        'Could not reach Notion API — check your network connection',
+        undefined,
+        err
+      );
+    }
 
-    const { stdout } = await execa('curl', args);
-    return JSON.parse(stdout);
+    handleHttpStatus('notion', response, resourceId);
+    return safeParseJson('notion', response);
+  }
+
+  // --- public API ---
+
+  async testConnection(): Promise<PMConnectionTestResult> {
+    const missing = this.getMissingConfig();
+    if (missing.length > 0) {
+      return failureResult('notion', new PMConfigError('notion', missing));
+    }
+
+    const start = Date.now();
+    try {
+      // Test 1: check authentication via /users/me
+      const user = (await this.notionFetch('/users/me')) as Record<string, unknown>;
+      const elapsed = Date.now() - start;
+      const name = (user.name as string) || '';
+
+      // Test 2: verify database access
+      const databaseId = this.getDatabaseId();
+      if (databaseId) {
+        try {
+          await this.notionFetch(`/databases/${databaseId}`, 'GET', undefined, databaseId);
+        } catch (err) {
+          if (err instanceof PMNotFoundError) {
+            return failureResult('notion', new PMNotFoundError('notion', databaseId, 'database'));
+          }
+          // Auth succeeded but database check failed for another reason – still report
+          return failureResult(
+            'notion',
+            new PMConnectionError(
+              'notion',
+              `Authenticated but could not access database ${databaseId}`
+            )
+          );
+        }
+      }
+
+      return successResult('notion', name ? `Authenticated as ${name}` : undefined, elapsed);
+    } catch (err) {
+      if (
+        err instanceof PMAuthError ||
+        err instanceof PMConnectionError ||
+        err instanceof PMConfigError
+      ) {
+        return failureResult('notion', err);
+      }
+      return failureResult(
+        'notion',
+        new PMConnectionError('notion', (err as Error).message, undefined, err)
+      );
+    }
   }
 
   async getTicket(ticketId: string): Promise<Ticket | null> {
     try {
-      const page = (await this.request(`/pages/${ticketId}`)) as Record<string, unknown>;
+      const page = (await this.notionFetch(
+        `/pages/${ticketId}`,
+        'GET',
+        undefined,
+        ticketId
+      )) as Record<string, unknown>;
       return this.parseNotionPage(page);
     } catch {
       return null;
@@ -656,7 +916,7 @@ export class NotionClient extends ProjectManagementClient {
     if (!databaseId) return [];
 
     try {
-      const response = (await this.request(`/databases/${databaseId}/query`, 'POST', {
+      const response = (await this.notionFetch(`/databases/${databaseId}/query`, 'POST', {
         filter: {
           property: 'Name',
           title: {
@@ -684,7 +944,9 @@ export class NotionClient extends ProjectManagementClient {
     return [];
   }
 
-  private parseNotionPage(page: Record<string, unknown>): Ticket {
+  // --- parsing helpers (public for testing) ---
+
+  parseNotionPage(page: Record<string, unknown>): Ticket {
     const properties = page.properties as Record<string, unknown>;
 
     // Try to extract title - Notion uses different property names
@@ -722,11 +984,23 @@ export class NotionClient extends ProjectManagementClient {
   }
 }
 
+// ─── GitHub Issues Client ─────────────────────────────────────────────────────
+
 /**
- * GitHub Issues client (wraps existing GitHubClient)
+ * GitHub Issues integration using the `gh` CLI.
+ *
+ * Unlike the other PM clients, this one keeps using `gh` CLI via execa because:
+ * - gh CLI handles OAuth/token management automatically
+ * - It respects the user's `gh auth` session
+ * - No separate API token needed
  */
 export class GitHubIssueClient extends ProjectManagementClient {
   readonly tool = 'github' as const;
+
+  getMissingConfig(): string[] {
+    // GitHub uses gh CLI auth – we detect this dynamically in testConnection
+    return [];
+  }
 
   async isConfigured(): Promise<boolean> {
     try {
@@ -734,6 +1008,54 @@ export class GitHubIssueClient extends ProjectManagementClient {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  async testConnection(): Promise<PMConnectionTestResult> {
+    const start = Date.now();
+    try {
+      // Check gh CLI is installed
+      try {
+        await execa('gh', ['--version']);
+      } catch {
+        return failureResult('github', new PMConfigError('github', ['gh CLI not installed']));
+      }
+
+      // Check auth status
+      const { stdout: authStatus } = await execa('gh', ['auth', 'status']);
+      const elapsed = Date.now() - start;
+
+      // Extract account info from auth status output
+      const accountMatch = authStatus.match(/Logged in to .+ as (\S+)/);
+      const account = accountMatch ? accountMatch[1] : undefined;
+
+      // Verify repo access
+      let repoInfo: string | undefined;
+      try {
+        const { stdout: repoJson } = await execa('gh', ['repo', 'view', '--json', 'nameWithOwner']);
+        const repo = JSON.parse(repoJson);
+        repoInfo = repo.nameWithOwner;
+      } catch {
+        // Not in a GitHub repo, but auth works – that's still a success
+      }
+
+      const info = [
+        account ? `Authenticated as ${account}` : 'Authenticated',
+        repoInfo ? `repo: ${repoInfo}` : null,
+      ]
+        .filter(Boolean)
+        .join(', ');
+
+      return successResult('github', info, elapsed);
+    } catch (err) {
+      const msg = (err as Error).message || '';
+      if (msg.includes('not logged') || msg.includes('auth login')) {
+        return failureResult(
+          'github',
+          new PMAuthError('github', 'Not authenticated — run `gh auth login`')
+        );
+      }
+      return failureResult('github', new PMConnectionError('github', msg, undefined, err));
     }
   }
 
@@ -832,7 +1154,9 @@ export class GitHubIssueClient extends ProjectManagementClient {
     }
   }
 
-  private parseGitHubIssue(issue: Record<string, unknown>): Ticket {
+  // --- parsing helpers (public for testing) ---
+
+  parseGitHubIssue(issue: Record<string, unknown>): Ticket {
     const labels = (issue.labels as Array<{ name: string }>) || [];
     const assignees = (issue.assignees as Array<{ login: string }>) || [];
 
@@ -849,9 +1173,7 @@ export class GitHubIssueClient extends ProjectManagementClient {
     };
   }
 
-  private inferTypeFromLabels(
-    labels: string[]
-  ): 'bug' | 'feature' | 'task' | 'story' | 'epic' | 'other' {
+  inferTypeFromLabels(labels: string[]): 'bug' | 'feature' | 'task' | 'story' | 'epic' | 'other' {
     const joined = labels.join(' ').toLowerCase();
     if (joined.includes('bug')) return 'bug';
     if (joined.includes('feature') || joined.includes('enhancement')) return 'feature';
@@ -859,6 +1181,8 @@ export class GitHubIssueClient extends ProjectManagementClient {
     return 'task';
   }
 }
+
+// ─── Factory ──────────────────────────────────────────────────────────────────
 
 /**
  * Factory function to get the appropriate project management client

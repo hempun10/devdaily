@@ -10,17 +10,20 @@ import { CopilotClient } from '../src/core/copilot.js';
  *
  * We use a subclass to expose private methods for testing.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing private methods for unit testing
+type AnyAccess = any;
+
 class TestableCopilotClient extends CopilotClient {
   public testParseOutput(raw: string): string {
-    return (this as any).parseOutput(raw);
+    return (this as AnyAccess).parseOutput(raw);
   }
 
   public testGenerateSimpleTitle(commits: string[]): string {
-    return (this as any).generateSimpleTitle(commits);
+    return (this as AnyAccess).generateSimpleTitle(commits);
   }
 
   public testDetectPRType(commits: string[]): string {
-    return (this as any).detectPRType(commits);
+    return (this as AnyAccess).detectPRType(commits);
   }
 
   public testFormatTicketContext(
@@ -32,11 +35,11 @@ class TestableCopilotClient extends CopilotClient {
       type: string;
     }>
   ): string {
-    return (this as any).formatTicketContext(tickets);
+    return (this as AnyAccess).formatTicketContext(tickets);
   }
 
-  public testFormatWorkContext(context?: any): string {
-    return (this as any).formatWorkContext(context);
+  public testFormatWorkContext(context?: Record<string, unknown>): string {
+    return (this as AnyAccess).formatWorkContext(context);
   }
 }
 
@@ -374,7 +377,7 @@ describe('CopilotClient', () => {
   describe('copilotTypeCache', () => {
     it('should have undefined cache initially', () => {
       // Access private property through any cast for testing
-      expect((client as any).copilotTypeCache).toBeUndefined();
+      expect((client as AnyAccess).copilotTypeCache).toBeUndefined();
     });
   });
 });
