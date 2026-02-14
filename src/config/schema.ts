@@ -102,6 +102,29 @@ export const ProjectManagementSchema = z.object({
     .default({}),
 });
 
+// Journal / snapshot automation
+export const JournalSchema = z.object({
+  // Automatically take a light snapshot when running standup, pr, week commands
+  autoSnapshot: z.boolean().default(true),
+
+  // Install git hooks (post-commit, post-checkout) to capture snapshots automatically
+  gitHooks: z.boolean().default(false),
+
+  // Which git hooks to install when gitHooks is enabled
+  hooks: z
+    .object({
+      postCommit: z.boolean().default(true),
+      postCheckout: z.boolean().default(true),
+    })
+    .default({}),
+
+  // Maximum age in days before journal entries are auto-pruned (0 = never)
+  autoPromptDays: z.number().default(0),
+
+  // Quiet mode — suppress snapshot side-effect messages in other commands
+  quiet: z.boolean().default(true),
+});
+
 // Full configuration schema
 export const ConfigSchema = z.object({
   // Version for config migrations
@@ -154,6 +177,9 @@ export const ConfigSchema = z.object({
     })
     .default({}),
 
+  // Journal / snapshot automation
+  journal: JournalSchema.default({}),
+
   // AI/Copilot settings
   copilot: z
     .object({
@@ -193,6 +219,13 @@ export const ConfigSchema = z.object({
       defaultAssignees: z.array(z.string()).default([]),
       titleFormat: z.enum(['conventional', 'ticket-first', 'plain']).default('conventional'),
       includeTicketInTitle: z.boolean().default(true),
+      // Path to a custom PR description prompt file (like CLAUDE.md for PRs)
+      // Searched automatically in: .devdaily-pr-prompt.md, .github/devdaily-pr-prompt.md, etc.
+      promptFile: z.string().optional(),
+      // Whether to include diff summary in the AI prompt for richer descriptions
+      includeDiff: z.boolean().default(true),
+      // Max lines of diff to include in the AI prompt (to avoid token limits)
+      maxDiffLines: z.number().default(200),
     })
     .default({}),
 
@@ -210,3 +243,4 @@ export type Theme = z.infer<typeof ThemeSchema>;
 export type Shortcuts = z.infer<typeof ShortcutsSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectManagement = z.infer<typeof ProjectManagementSchema>;
+export type Journal = z.infer<typeof JournalSchema>;

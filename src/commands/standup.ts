@@ -10,6 +10,7 @@ import { sendNotification, formatStandupNotification } from '../core/notificatio
 import UI from '../ui/renderer.js';
 import { copyToClipboard } from '../utils/helpers.js';
 import { getConfig } from '../config/index.js';
+import { sideEffectSnapshot } from '../core/auto-snapshot.js';
 
 const { colors } = UI;
 
@@ -30,6 +31,7 @@ export const standupCommand = new Command('standup')
   .option('--send', 'Send to configured notification channels (Slack/Discord)')
   .option('--slack', 'Send to Slack')
   .option('--discord', 'Send to Discord')
+  .option('--no-journal', 'Skip auto-saving a snapshot to the journal')
   .action(async (options) => {
     const config = getConfig();
     const git = new GitAnalyzer();
@@ -212,6 +214,15 @@ export const standupCommand = new Command('standup')
             UI.warning('Some notifications failed to send. Check your webhook configuration.')
           );
         }
+      }
+
+      // ── Auto-snapshot side-effect ──────────────────────────────────────
+      if (options.journal !== false) {
+        await sideEffectSnapshot({
+          source: 'standup',
+          note: `Standup generated (${ctx.commits.length} commits, ${days} day${days !== 1 ? 's' : ''})`,
+          debug: isDebug,
+        });
       }
     } catch (error) {
       spinner.stop();

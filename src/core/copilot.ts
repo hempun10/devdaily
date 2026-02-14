@@ -2,6 +2,7 @@ import { execa } from 'execa';
 import { type Ticket } from './project-management.js';
 import { type WorkContext } from './context-analyzer.js';
 import { type StandupContext, StandupContextBuilder } from './standup-context.js';
+import { type PRPromptConfig, formatPRPromptForAI } from './pr-prompt.js';
 
 export interface IssueContext {
   number: number;
@@ -324,6 +325,14 @@ ${workAreas ? `- The work was primarily in: ${workAreas}` : ''}
     files: string[];
     issues: string[];
     ticketDetails?: Ticket[];
+    /** git diff --stat output */
+    diffStat?: string;
+    /** Truncated unified diff for AI context */
+    diff?: string;
+    /** Raw PR template content for the AI to follow */
+    templateContent?: string;
+    /** Custom PR description prompt / team guidelines */
+    promptConfig?: PRPromptConfig | null;
   }): Promise<string> {
     // Build ticket context
     let ticketContext = '';
@@ -331,8 +340,23 @@ ${workAreas ? `- The work was primarily in: ${workAreas}` : ''}
       ticketContext = this.formatTicketContext(data.ticketDetails);
     }
 
+    // Build ticket link references for the description footer
+    const ticketLinks = this.buildTicketLinks(data.ticketDetails || [], data.issues);
+
+    // Build diff context block
+    const diffBlock = this.buildDiffBlock(data.diffStat, data.diff);
+
+    // Build team guidelines block
+    const guidelinesBlock = data.promptConfig ? formatPRPromptForAI(data.promptConfig) : '';
+
+    // Build template guidance block
+    const templateBlock = data.templateContent
+      ? `\n=== PR TEMPLATE (follow this structure) ===\n${data.templateContent}\n=== END PR TEMPLATE ===\n`
+      : '';
+
     const prompt = `
-You are helping a developer create a Pull Request description.
+You are an expert developer helping create a Pull Request description.
+Your job is to write a clear, accurate, reviewer-friendly PR description.
 
 Branch: ${data.branch}
 
@@ -340,33 +364,38 @@ Commits:
 ${data.commits.map((c, i) => `${i + 1}. ${c}`).join('\n')}
 
 Files changed:
-${data.files.join('\n')}
-
+${data.files.slice(0, 40).join('\n')}${data.files.length > 40 ? `\n... and ${data.files.length - 40} more files` : ''}
+${diffBlock}
 Related tickets: ${data.issues.length > 0 ? data.issues.join(', ') : 'None'}
 ${ticketContext}
+${templateBlock}
+${guidelinesBlock}
+Generate a comprehensive PR description. ${data.templateContent ? 'Follow the PR template structure above.' : 'Use this structure:'}
 
-Generate a comprehensive PR description following this template:
-
-## What Changed
-- [bullet point 1]
-- [bullet point 2]
-- [bullet point 3]
+${
+  !data.templateContent
+    ? `## What Changed
+- [specific bullet points based on the ACTUAL diff and commits — do NOT invent changes]
 
 ## Why
-[Business or technical reason for these changes - USE THE TICKET CONTEXT if available to explain the real reason/value]
-${data.issues.length > 0 ? `Closes ${data.issues.join(', ')}` : ''}
+[Business or technical reason — USE ticket context if available to explain the real value]
 
 ## How to Test
-1. [testing step 1]
-2. [testing step 2]
-3. [testing step 3]
+1. [concrete testing step]
+2. [another step]
+3. [verification step]`
+    : ''
+}
+
+${ticketLinks ? `\nInclude these ticket references at the end of the description:\n${ticketLinks}` : ''}
 
 Requirements:
-- Be specific and technical where appropriate
+- Be specific and technical — reference actual files, functions, and changes from the diff
+- NEVER invent or hallucinate changes that are not in the commits or diff
 - Use ticket descriptions to explain the WHY (business value)
-- Focus on value for code reviewers
+- Focus on value for code reviewers — what should they pay attention to?
 - Keep it clear and concise
-- No emojis
+- No emojis in the body text
 `;
 
     return this.suggest(prompt);
@@ -382,6 +411,14 @@ Requirements:
     issues: string[];
     ticketDetails?: Ticket[];
     templateSections?: string[];
+    /** git diff --stat output */
+    diffStat?: string;
+    /** Truncated unified diff for AI context */
+    diff?: string;
+    /** Raw PR template content for the AI to understand section expectations */
+    templateContent?: string;
+    /** Custom PR description prompt / team guidelines */
+    promptConfig?: PRPromptConfig | null;
   }): Promise<{
     title: string;
     description: string;
@@ -397,8 +434,22 @@ Requirements:
       ticketContext = this.formatTicketContext(data.ticketDetails);
     }
 
+    // Build diff context block
+    const diffBlock = this.buildDiffBlock(data.diffStat, data.diff);
+
+    // Build team guidelines block
+    const guidelinesBlock = data.promptConfig ? formatPRPromptForAI(data.promptConfig) : '';
+
+    // Build template guidance block
+    const templateBlock = data.templateContent
+      ? `\nThe PR template used by this repo is:\n---\n${data.templateContent}\n---\nFill content that matches each section of this template.\n`
+      : '';
+
+    // Build ticket link references
+    const ticketLinks = this.buildTicketLinks(data.ticketDetails || [], data.issues);
+
     const prompt = `
-You are helping a developer create a Pull Request. Analyze the changes and generate content.
+You are an expert developer helping create a Pull Request. Analyze the ACTUAL changes and generate content.
 
 Branch: ${data.branch}
 
@@ -406,22 +457,30 @@ Commits:
 ${data.commits.map((c, i) => `${i + 1}. ${c}`).join('\n')}
 
 Files changed:
-${data.files.slice(0, 30).join('\n')}${data.files.length > 30 ? `\n... and ${data.files.length - 30} more files` : ''}
-
+${data.files.slice(0, 40).join('\n')}${data.files.length > 40 ? `\n... and ${data.files.length - 40} more files` : ''}
+${diffBlock}
 Related tickets: ${data.issues.length > 0 ? data.issues.join(', ') : 'None'}
 ${ticketContext}
+${templateBlock}
+${guidelinesBlock}
+${data.templateSections ? `Template sections to fill: ${data.templateSections.join(', ')}` : ''}
 
 Generate a JSON object with the following fields (respond with ONLY the JSON, no markdown):
 
 {
-  "title": "A concise PR title (e.g., 'Add user authentication feature')",
-  "description": "2-4 bullet points describing WHAT changed",
+  "title": "A concise PR title following conventional commit format (e.g., 'feat: add user authentication')",
+  "description": "2-4 bullet points describing WHAT changed — be specific, reference actual files/functions from the diff. NEVER invent changes.${ticketLinks ? ` Include ticket references: ${ticketLinks}` : ''}",
   "type": "One of: feat, fix, docs, refactor, test, chore, hotfix, security, style",
-  "impact": "1-2 sentences about the impact of these changes",
-  "testing": "2-3 numbered steps on how to test these changes",
+  "impact": "1-2 sentences about the impact of these changes. Use ticket context for business value if available.",
+  "testing": "2-3 numbered steps on how to test these changes — be specific about what to verify",
   "breakingChanges": "Description of breaking changes, or 'None'",
   "additionalInfo": "Any additional context reviewers should know, or 'None'"
 }
+
+IMPORTANT:
+- Base your output strictly on the commits, files, and diff provided. Do NOT hallucinate.
+- Reference actual file paths and function names where relevant.
+- Use ticket context to explain the business WHY, not just the technical WHAT.
 `;
 
     const response = await this.suggest(prompt);
@@ -450,6 +509,64 @@ Generate a JSON object with the following fields (respond with ONLY the JSON, no
       breakingChanges: 'None',
       additionalInfo: 'None',
     };
+  }
+
+  /**
+   * Build a diff context block for the AI prompt.
+   * Includes both the --stat summary and truncated unified diff.
+   */
+  private buildDiffBlock(diffStat?: string, diff?: string): string {
+    if (!diffStat && !diff) return '';
+
+    const parts: string[] = [''];
+
+    if (diffStat) {
+      parts.push('Diff summary (git diff --stat):');
+      parts.push(diffStat);
+      parts.push('');
+    }
+
+    if (diff) {
+      parts.push('Code changes (unified diff — use this to understand WHAT actually changed):');
+      parts.push(diff);
+      parts.push('');
+    }
+
+    return parts.join('\n');
+  }
+
+  /**
+   * Build ticket link references for inclusion in the PR description.
+   * Generates "Closes #ID" for GitHub or full URLs for Jira/Linear.
+   */
+  private buildTicketLinks(tickets: Ticket[], issueIds: string[]): string {
+    if (tickets.length === 0 && issueIds.length === 0) return '';
+
+    const links: string[] = [];
+
+    for (const ticket of tickets) {
+      if (ticket.source === 'github') {
+        links.push(`Closes ${ticket.id}`);
+      } else if (ticket.url) {
+        links.push(`Relates to [${ticket.id}](${ticket.url})`);
+      } else {
+        links.push(`Relates to ${ticket.id}`);
+      }
+    }
+
+    // Add any issue IDs that didn't have a matching ticket object
+    const ticketIdsFromObjects = new Set(tickets.map((t) => t.id));
+    for (const id of issueIds) {
+      if (!ticketIdsFromObjects.has(id)) {
+        if (id.startsWith('#')) {
+          links.push(`Closes ${id}`);
+        } else {
+          links.push(`Relates to ${id}`);
+        }
+      }
+    }
+
+    return links.join('\n');
   }
 
   /**
