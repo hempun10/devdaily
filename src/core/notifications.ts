@@ -4,6 +4,7 @@
  */
 
 import { getConfig, getSecrets } from '../config/index.js';
+import { formatOutput } from '../utils/formatter.js';
 
 export interface NotificationMessage {
   title?: string;
@@ -118,12 +119,13 @@ function formatSlackMessage(message: NotificationMessage): SlackMessage {
     });
   }
 
-  // Main content
+  // Main content — convert markdown to Slack mrkdwn format
+  const slackText = formatOutput(message.text, 'slack').text;
   blocks.push({
     type: 'section',
     text: {
       type: 'mrkdwn',
-      text: message.text,
+      text: slackText,
     },
   });
 
